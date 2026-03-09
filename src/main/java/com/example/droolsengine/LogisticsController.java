@@ -1,6 +1,7 @@
 package com.example.droolsengine;
 
-import org.apache.http.HttpStatus;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,9 +29,14 @@ public class LogisticsController {
     }
 
     @PostMapping(path = "/deliveryRuleManager", produces = "application/json")
-    public Logistics deliveryRuleCall(@RequestBody Logistics logistics, SessionStatus sessionStatus) {
+    public ResponseEntity<Logistics> deliveryRuleCall(@RequestBody Logistics logistics, SessionStatus sessionStatus) {
+        System.out.println(logistics.getWeight());
+        System.out.println(logistics.getDestination());
         logisticsService.logisticDecisionManager(logistics);
-
-        return logistics;
+        if (logistics.getDeliveryType() != DeliveryType.MANUAL_REVIEW) {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(logistics);
+        } else {
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(logistics);
+        }
     }
 }

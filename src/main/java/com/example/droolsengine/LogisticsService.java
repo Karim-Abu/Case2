@@ -24,7 +24,8 @@ public class LogisticsService {
     // Manual test
     public static void main(String[] args) {
         LogisticsService l = new LogisticsService();
-        Logistics logistics = new Logistics(50, "RS");
+        Logistics logistics = new Logistics(50, "CH");
+        System.out.println(logistics.getDestination());
         l.logisticDecisionManager(logistics);
     }
 
@@ -52,7 +53,7 @@ public class LogisticsService {
 
             log.info("DeliveryType: {}", logistics.getDeliveryType());
         } catch (Exception e) {
-            log.error("e: ", e);
+            log.error("ERROR: ", e);
         }
 
 

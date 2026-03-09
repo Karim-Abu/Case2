@@ -1,14 +1,23 @@
 package com.example.droolsengine;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 public class Logistics {
     private double weight;
     private DeliveryCountry destination;
     private DeliveryType deliveryType;
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private String deliveryCountryManualCheck;
 
+    public Logistics() {
+    }
 
     public Logistics(double weight, String destination) {
         this.weight = weight;
         this.destination = DeliveryCountry.fromString(destination);
+        if (this.destination == DeliveryCountry.NOT_DEFINED) {
+            this.deliveryCountryManualCheck = destination;
+        }
     }
 
     public double getWeight() {
@@ -23,8 +32,8 @@ public class Logistics {
         return destination;
     }
 
-    public void setDestination(DeliveryCountry destination) {
-        this.destination = destination;
+    public void setDestination(String destination) {
+        this.destination = DeliveryCountry.fromString(destination);
     }
 
     public DeliveryType getDeliveryType() {
@@ -33,5 +42,13 @@ public class Logistics {
 
     public void setDeliveryType(DeliveryType deliveryType) {
         this.deliveryType = deliveryType;
+    }
+
+    public String getDeliveryCountryManualCheck() {
+        return deliveryCountryManualCheck;
+    }
+
+    public void setDeliveryCountryManualCheck(String deliveryCountryManualCheck) {
+        this.deliveryCountryManualCheck = deliveryCountryManualCheck;
     }
 }
