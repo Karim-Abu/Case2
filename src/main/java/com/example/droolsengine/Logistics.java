@@ -5,6 +5,7 @@ public class Logistics {
     private DeliveryCountry destination;
     private DeliveryType deliveryType;
 
+
     public Logistics(double weight, DeliveryCountry destination) {
         this.weight = weight;
         this.destination = destination;

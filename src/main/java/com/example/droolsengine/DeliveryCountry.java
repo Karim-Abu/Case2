@@ -1,11 +1,22 @@
 package com.example.droolsengine;
 
-import org.hibernate.boot.jaxb.mapping.spi.JaxbPluralAnyMappingImpl;
+import java.util.Objects;
 
 public enum DeliveryCountry {
-    ARGENTINIEN,
-    JAPAN,
-    RUSSLAND,
-    SCHWEIZ,
-    DEUTSCHLAND
+    AR,
+    JP,
+    RU,
+    CH,
+    DE,
+    NOT_DEFINED;
+
+
+    public static DeliveryCountry fromString(String countryCode) {
+        for (DeliveryCountry country : DeliveryCountry.values()) {
+            if (Objects.equals(countryCode, country.toString())) {
+                return country;
+            }
+        }
+        return NOT_DEFINED;
+    }
 }
