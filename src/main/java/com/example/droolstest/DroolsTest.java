@@ -38,7 +38,7 @@ public class DroolsTest {
 
         // instantiate some sample data
         Customer customer = new Customer();
-        customer.setCountry(Customer.Country.CH);
+        customer.setCountry(Country.CH);
         customer.setYears(3);
 
         // submit sample data to rule engine

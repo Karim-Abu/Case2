@@ -2,12 +2,6 @@ package com.example.droolstest;
 
 public class Customer {
 
-    public enum Country {
-        DE,
-        CH,
-        OTHER
-    }
-
     private int years;
     private Country country;
 
