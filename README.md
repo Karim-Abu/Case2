@@ -15,6 +15,8 @@ Die Anwendung nutzt Drools-Entscheidungstabellen, um Logikregeln von der Java-Pr
 * **Domain Modell**: Besteht aus Klassen wie `Logistics`, `DeliveryCountry` und `DeliveryType`, welche die Datenstruktur für die Regelprüfung definieren.
 * **Regel-Definitionen**: Die Versandregeln sind in der Datei `logistic_rules.drl` definiert, welche ursprünglich aus einer Excel-Entscheidungstabelle generiert wurde.
 
+---
+
 ## Versandregeln
 
 Das System wendet aktuell folgende Logik an:
