@@ -76,7 +76,15 @@ Das System ergänzt das Feld deliveryType basierend auf den Regeln.
 Das Projekt enthält umfassende JUnit-Tests in DroolsTestApplicationTests.java, welche die verschiedenen Länder- und Gewichtskombinationen sowie Edge-Cases prüfen. Diese können wie folgt ausgeführt werden:
 Bash
 
+
+```bash
+# Unter Linux/macOS
 ./mvnw test
+
+# Unter Windows
+./mvnw.cmd test
+```
+
 
 ---
 
