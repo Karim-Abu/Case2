@@ -1,0 +1,270 @@
+# Anleitung — Versandbeauftragungsprozess (Case 2, Group 2)
+
+Diese Anleitung erklärt das gesamte Projekt so, dass man es auch ohne tiefes Programmierwissen versteht.
+Sie beschreibt, was das System tut, wie die Teile zusammenspielen und wo man was findet.
+
+---
+
+## Was macht dieses System?
+
+Die Firma **Accolaia AG** verschickt Waren in verschiedene Länder. Je nach Zielland und Gewicht
+muss eine passende **Versandart** gewählt werden — z.B. Standardpost, Luftfracht oder Spezialfracht.
+
+Dieses System **automatisiert** diese Entscheidung:
+
+1. Ein Mitarbeiter gibt im Camunda-Prozess das Zielland und das Gewicht ein.
+2. Das System prüft automatisch anhand von Regeln, welche Versandart passt.
+3. Falls das System die Entscheidung nicht allein treffen kann, wird ein Mensch einbezogen.
+4. Zum Schluss wird ein Transportauftrag an die Spedition gesendet.
+
+Alle Entscheidungen werden in einer Datenbank gespeichert — sowohl die automatischen als auch die manuellen.
+Diese Daten können später für ein KI-Modell verwendet werden.
+
+---
+
+## Übersicht der Komponenten
+
+Das Projekt besteht aus **zwei Teilprojekten**, die zusammenarbeiten:
+
+```
+Case2 (dieses Repository)
+│
+├── /                          ← Drools Engine (Spring Boot Service)
+│   ├── src/main/java/...      ← Java-Quellcode (Regeln, REST-API, Datenbank)
+│   ├── src/main/resources/    ← Konfiguration + Regeltabelle (Excel)
+│   └── src/test/java/...      ← Automatisierte Tests
+│
+├── swa_case_2_worker/         ← Camunda Workers (Java-Programm)
+│   ├── src/main/java/...      ← Java-Quellcode (3 Worker)
+│   └── pom.xml                ← Build-Konfiguration
+│
+├── README.md                  ← Technisches README des Drools-Service
+├── ANLEITUNG.md               ← Diese Datei (Übersicht und Anleitung)
+└── Versandbeauftragungsprozess_mit_drools (1).bpmn  ← Der BPMN-Prozess
+```
+
+### 1. Drools Engine (Hauptverzeichnis `/`)
+
+Das ist ein **Webservice** (eine Art Server), der auf Anfragen wartet und folgendes tut:
+
+- **Regeln auswerten:** Anhand einer Excel-Tabelle wird für ein Zielland + Gewicht automatisch die richtige Versandart bestimmt.
+- **Entscheidungen speichern:** Jede Entscheidung wird in einer Datenbank protokolliert (wer hat entschieden, welche Regel, wann).
+- **Statistiken bereitstellen:** Wie oft wurde automatisch entschieden vs. manuell?
+
+### 2. Camunda Workers (Unterverzeichnis `swa_case_2_worker/`)
+
+Das sind **drei kleine Programme**, die im Hintergrund laufen und Aufgaben vom Camunda-Prozess abholen:
+
+| Worker | Was er tut |
+|--------|-----------|
+| **DroolsWorker** | Holt sich eine Aufgabe „Versandart bestimmen", schickt Land + Gewicht an die Drools Engine, schreibt das Ergebnis zurück in den Prozess. |
+| **DecisionLogWorker** | Wenn ein Mensch manuell entschieden hat, protokolliert dieser Worker die Begründung in der Datenbank. |
+| **SpeditionApiWorker** | Schickt den fertigen Transportauftrag an die externe Speditions-API und verarbeitet die Antwort (Trackingnummer, Abholdatum etc.). |
+
+---
+
+## Der Ablauf (Schritt für Schritt)
+
+```
+Mitarbeiter gibt Zielland + Gewicht ein
+         │
+         ▼
+   ┌─────────────┐
+   │ DroolsWorker │──► Drools Engine prüft Regeln
+   └──────┬──────┘
+          │
+          ▼
+    ┌───────────────────────┐
+    │ Ergebnis der Prüfung: │
+    ├───────────────────────┤
+    │ AUTO                  │ → Versandart steht fest (z.B. STANDARD_MAIL)
+    │ MANUAL_REVIEW         │ → Ein Mensch muss entscheiden (z.B. Sanktionsland)
+    │ INVALID_INPUT         │ → Eingabe war ungültig (z.B. Gewicht = 0)
+    └───────┬───────────────┘
+            │
+    ┌───────▼───────────────────┐
+    │ Falls MANUAL_REVIEW oder  │
+    │ INVALID_INPUT:            │
+    │  → Mitarbeiter wählt      │
+    │    Versandart manuell     │
+    │  → DecisionLogWorker      │
+    │    speichert Begründung   │
+    └───────┬───────────────────┘
+            │
+            ▼
+    ┌──────────────────┐
+    │ SpeditionApiWorker│──► Speditions-API: Transportauftrag absenden
+    └──────────────────┘
+            │
+            ▼
+    Trackingnummer + Abholdatum erhalten
+    Kunde wird informiert, Vorgang archiviert
+```
+
+---
+
+## Die Versandregeln
+
+Die Regeln stehen in einer **Excel-Datei** (`src/main/resources/rules/Logistics.drl.xls`).
+Das bedeutet: Um Regeln zu ändern, muss man **keinen Code anfassen** — nur die Excel-Tabelle anpassen.
+
+| Zielland | Gewicht | Versandart |
+|----------|---------|------------|
+| Argentinien (AR) | bis 60 kg | Standardpost (STANDARD_MAIL) |
+| Argentinien (AR) | 60–500 kg | Spezialfracht (SPECIAL_FREIGHT) |
+| Argentinien (AR) | über 500 kg | Manuelle Prüfung nötig |
+| Japan (JP) | bis 200 kg | Luftfracht (AIR_FREIGHT) |
+| Japan (JP) | über 200 kg | Manuelle Prüfung nötig |
+| Russland (RU) | beliebig | Manuelle Prüfung nötig (Sanktionen) |
+| Schweiz (CH) | beliebig | Standardfracht (STANDARD_FREIGHT) |
+| Deutschland (DE) | beliebig | Standardfracht (STANDARD_FREIGHT) |
+| Unbekanntes Land | beliebig | Manuelle Prüfung nötig |
+
+Falls gar keine Regel greift (Sicherheitsnetz): → Manuelle Prüfung.
+
+---
+
+## Wo finde ich was?
+
+### Drools Engine (Hauptverzeichnis)
+
+| Datei / Ordner | Beschreibung |
+|----------------|--------------|
+| `src/main/java/com/example/droolsengine/` | Gesamter Java-Quellcode der Drools Engine |
+| `LogisticsController.java` | Empfängt Anfragen (REST-API) und gibt Antworten zurück (HTTP 202, 206, 400) |
+| `LogisticsService.java` | Initialisiert die Drools-Regeln und wertet sie pro Anfrage aus |
+| `DecisionLogService.java` | Speichert Entscheidungen in der Datenbank |
+| `DecisionLogController.java` | REST-Endpunkte für Statistiken und manuelle Entscheidungen |
+| `DecisionLog.java` | Datenbank-Modell: Was wird pro Entscheidung gespeichert |
+| `DecisionStatus.java` | Die vier möglichen Status: AUTO, MANUAL_REVIEW, INVALID_INPUT, FINAL |
+| `Logistics.java` | Datenobjekt: Zielland + Gewicht + Ergebnis (wird an Drools übergeben) |
+| `RuleNameListener.java` | Merkt sich, welche Regel gefeuert hat (für das Protokoll) |
+| `src/main/resources/rules/Logistics.drl.xls` | **Die Excel-Regeltabelle** — hier werden Versandregeln gepflegt |
+| `src/main/resources/rules/logistic_rules.drl` | Referenzdokument der Regeln (wird nicht direkt verwendet) |
+| `src/main/resources/application.properties` | Grundkonfiguration (welches Datenbankprofil, Regelversion) |
+| `src/main/resources/application-h2.properties` | Konfiguration für lokale Entwicklung (In-Memory-Datenbank) |
+| `src/main/resources/application-mysql.properties` | Konfiguration für Produktion (MySQL-Datenbank) |
+| `src/test/java/com/example/droolstest/` | Automatisierte Tests |
+| `pom.xml` | Build-Konfiguration und Abhängigkeiten (Maven) |
+
+### Camunda Workers (`swa_case_2_worker/`)
+
+| Datei | Beschreibung |
+|-------|--------------|
+| `src/main/java/ch/fhnw/students/WorkerMain.java` | Startpunkt: Registriert alle drei Worker beim Camunda-Server |
+| `src/main/java/ch/fhnw/students/DroolsWorker.java` | Worker 1: Versandart bestimmen (ruft Drools Engine auf) |
+| `src/main/java/ch/fhnw/students/DecisionLogWorker.java` | Worker 2: Manuelle Entscheidung in Datenbank protokollieren |
+| `src/main/java/ch/fhnw/students/SpeditionApiWorker.java` | Worker 3: Transportauftrag an Speditions-API senden |
+| `src/main/java/ch/fhnw/students/HttpHelper.java` | Hilfscode für HTTP-Aufrufe |
+| `pom.xml` | Build-Konfiguration des Worker-Projekts |
+
+### Sonstige Dateien
+
+| Datei | Beschreibung |
+|-------|--------------|
+| `Versandbeauftragungsprozess_mit_drools (1).bpmn` | Der BPMN-Prozess als XML — kann in Camunda Modeler geöffnet werden |
+| `README.md` | Technisches README der Drools Engine (für Entwickler) |
+| `swa_case_2_worker/README.md` | Technisches README der Workers (für Entwickler) |
+| `ANLEITUNG.md` | Diese Datei |
+
+---
+
+## So startet man das System
+
+### Voraussetzungen
+
+- **Java 21** muss installiert sein ([Download](https://adoptium.net/))
+- Maven muss nicht separat installiert werden — der Maven Wrapper (`mvnw.cmd`) ist im Repo enthalten
+
+### Schritt 1: Drools Engine starten
+
+Terminal öffnen im Hauptverzeichnis und ausführen:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+Der Service startet auf **Port 8080** (Standard) mit der H2-In-Memory-Datenbank.
+
+Zum Testen, ob der Service läuft:
+```
+http://localhost:8080/ping
+```
+Erwartete Antwort: `{"ping": true}`
+
+### Schritt 2: Workers starten
+
+Zweites Terminal öffnen im Ordner `swa_case_2_worker/` und ausführen:
+
+```powershell
+.\mvnw.cmd compile exec:java
+```
+
+Die drei Worker verbinden sich mit dem Camunda-Server und warten auf Aufgaben.
+
+### Schritt 3: Tests ausführen
+
+Im Hauptverzeichnis:
+
+```powershell
+.\mvnw.cmd test
+```
+
+Es gibt 24 automatisierte Tests, die alle Regeln und REST-Endpunkte prüfen.
+
+---
+
+## Wie die Datenbank funktioniert
+
+Jede Entscheidung erzeugt einen Eintrag in der Tabelle `decision_log`:
+
+| Feld | Bedeutung |
+|------|-----------|
+| `delivery_country` | Zielland (z.B. „AR" für Argentinien) |
+| `weight` | Gewicht in kg |
+| `delivery_type` | Gewählte Versandart (z.B. „STANDARD_MAIL") |
+| `decision_source` | Wer hat entschieden? `DROOLS` (Computer) oder `HUMAN` (Mensch) |
+| `decision_status` | Status: AUTO, MANUAL_REVIEW, INVALID_INPUT oder FINAL |
+| `rule_name` | Welche Regel hat gefeuert (nur bei automatischen Entscheidungen) |
+| `manual_reason` | Begründung des Mitarbeiters (nur bei manuellen Entscheidungen) |
+| `process_instance_id` | Verknüpfung zum Camunda-Prozess |
+| `timestamp` | Zeitpunkt der Entscheidung |
+
+Bei **manuellen Entscheidungen** gibt es immer **zwei Einträge** für denselben Prozess:
+1. Den ersten Eintrag von Drools (Status: MANUAL_REVIEW)
+2. Den zweiten Eintrag vom Mitarbeiter (Status: FINAL)
+
+So kann man später vergleichen, was das System vorgeschlagen hätte und was der Mensch tatsächlich gewählt hat.
+
+---
+
+## Begriffe kurz erklärt
+
+| Begriff | Erklärung |
+|---------|-----------|
+| **Drools** | Eine Regel-Engine von Red Hat. Man beschreibt Geschäftsregeln in einer Excel-Tabelle und Drools wertet sie automatisch aus. |
+| **Camunda** | Eine Workflow-Engine. Steuert den BPMN-Prozess und verteilt Aufgaben an Workers. |
+| **BPMN** | Business Process Model and Notation — eine standardisierte Darstellung von Geschäftsprozessen (wie ein Flussdiagramm). |
+| **External Task Worker** | Ein Programm, das sich bei Camunda anmeldet und Aufgaben abholt, verarbeitet und das Ergebnis zurückmeldet. |
+| **Spring Boot** | Ein Java-Framework für Webservices. Macht es einfach, REST-APIs und Datenbank-Zugriffe zu bauen. |
+| **REST-API** | Eine Schnittstelle, über die Programme miteinander über HTTP kommunizieren (wie ein Browser mit einer Website). |
+| **H2** | Eine kleine In-Memory-Datenbank für Entwicklung und Tests. Die Daten verschwinden beim Neustart. |
+| **MySQL** | Eine echte Datenbank für den Produktionsbetrieb. Die Daten bleiben gespeichert. |
+| **Maven** | Ein Build-Tool für Java-Projekte. Lädt Abhängigkeiten herunter und kompiliert den Code. |
+| **XOR-Gateway** | Eine Verzweigung im BPMN-Prozess — wie eine Weiche: Nur ein Weg wird genommen, je nach Bedingung. |
+| **Decision Log** | Die Protokolltabelle in der Datenbank, in der alle Entscheidungen festgehalten werden. |
+
+---
+
+## Technologie-Stack
+
+| Komponente | Technologie | Version |
+|------------|-------------|---------|
+| Drools Engine | Spring Boot | 4.0.3 |
+| Regel-Engine | Drools (Decision Table) | 10.1.0 |
+| Programmiersprache | Java | 21 |
+| Datenbank (Entwicklung) | H2 In-Memory | — |
+| Datenbank (Produktion) | MySQL | — |
+| Workers | Camunda External Task Client | 1.3.1 |
+| Build-Tool | Maven (Wrapper) | — |
+| Prozess-Engine | Camunda 7 | — |

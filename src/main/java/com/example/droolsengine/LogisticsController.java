@@ -37,9 +37,9 @@ import java.util.Map;
  *
  * Wichtig: MANUAL_REVIEW ≠ INVALID_INPUT
  * - MANUAL_REVIEW: Drools wurde aufgerufen, Regel schreibt menschliche Prüfung
- *   vor (z.B. RU, JP>200kg, unbekanntes Land)
+ * vor (z.B. RU, JP>200kg, unbekanntes Land)
  * - INVALID_INPUT: Validierung fehlgeschlagen, Drools wurde NIE aufgerufen
- *   (z.B. weight ≤ 0, destination fehlt)
+ * (z.B. weight ≤ 0, destination fehlt)
  *
  * Camunda-Worker übergibt optional den Header X-Process-Instance-Id für die
  * Verknüpfung von DROOLS- und HUMAN-Einträgen in decision_log.

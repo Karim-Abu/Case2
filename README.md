@@ -1,45 +1,75 @@
-# Logistics Drools Engine — Problemfall 2
+# Drools Engine — Versandbeauftragung (Case 2, Group 2)
 
-Spring-Boot-Service, der die automatische Speditionswahl via Drools Decision Table implementiert,
-alle Entscheidungen in MySQL protokolliert und als Datenbasis für ein späteres AI-System dient.
+Spring-Boot-Service, der die automatische Speditionswahl via Drools Decision Table (Excel) implementiert.
+Protokolliert alle Entscheidungen in einer Datenbank und stellt KPI-Statistiken bereit.
+
+> Für eine allgemeine, nicht-technische Erklärung des Gesamtsystems: siehe [ANLEITUNG.md](ANLEITUNG.md).
+> Die Camunda Workers befinden sich im Unterverzeichnis [`swa_case_2_worker/`](swa_case_2_worker/).
 
 ---
 
 ## Architektur
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Accolaia AG                              │
-│                                                                 │
-│   Camunda 7 (BPMN-Prozess)                                      │
-│     │                                                           │
-│     ├─── External Task Worker (group2_droolsEngine) ───────────►│
-│     │         ruft POST /deliveryRuleManager auf                │◄── dieses Repo
-│     │         liest HTTP-Status + Response-Body zurück          │
-│     │                                                           │
-│     ├─── External Task Worker (group2_logDecision) ────────────►│
-│     │         ruft POST /decisions/manual auf (nur bei          │
-│     │         isManualDecision=true)                            │
-│     │                                                           │
-│     └─── External Task Worker (group2_requestAPI)               │
-│               ruft externe Speditions-API auf                   │
-└─────────────────────────────────────────────────────────────────┘
-              │
-              ▼
-        MySQL decision_log
-        (Drools + Human — getrennte Einträge, verknüpft via processInstanceId)
+Camunda 7 (BPMN-Prozess)
+  │
+  ├── DroolsWorker ──────► POST /deliveryRuleManager   ◄── dieser Service
+  │                         → Regeln auswerten, Entscheidung loggen
+  │
+  ├── DecisionLogWorker ──► POST /decisions/manual
+  │                         → Manuelle Entscheidung protokollieren
+  │
+  └── SpeditionApiWorker    (externer Speditions-Service, nicht Teil dieses Repos)
+          │
+          ▼
+    MySQL decision_log
+    (Drools- + Human-Einträge, verknüpft via processInstanceId)
 ```
 
-### Separation of Concerns
+### Aufgabenteilung
 
-| Baustein                | Verantwortung                                                         |
-| ----------------------- | --------------------------------------------------------------------- |
-| **Drools (Excel)**      | Welche Versandart gilt für Land + Gewicht? Geschäftslogik, kein Code. |
-| **LogisticsService**    | Drools initialisieren, KieSession pro Request, RuleNameListener       |
-| **LogisticsController** | HTTP-Adapter: Drools-Ergebnis → HTTP-Statuscode, Entscheidung loggen  |
-| **DecisionLogService**  | Protokollierung in MySQL. DROOLS- und HUMAN-Einträge getrennt.        |
-| **Camunda Worker**      | Prozesssteuerung. Kennt weder Drools noch SQL direkt.                 |
-| **MySQL decision_log**  | Audit-Trail + Trainingsdaten für zukünftiges ML-Modell                |
+| Baustein | Verantwortung |
+|----------|---------------|
+| **Drools Excel** (`Logistics.drl.xls`) | Geschäftsregeln: Welche Versandart gilt für Land + Gewicht? Kein Code. |
+| **LogisticsService** | Drools initialisieren, KieSession pro Request, Regelnamen erfassen |
+| **LogisticsController** | REST-Adapter: Drools-Ergebnis → HTTP 202/206/400, Entscheidung loggen |
+| **DecisionLogService** | Protokollierung in der Datenbank (DROOLS- und HUMAN-Einträge getrennt) |
+| **DecisionLogController** | REST-Endpunkte: KPI-Statistiken + manuelle Entscheidung speichern |
+
+## Projektstruktur
+
+```
+├── src/main/java/com/example/
+│   ├── DroolsTestApplication.java          ← Spring Boot Entry Point
+│   └── droolsengine/
+│       ├── LogisticsController.java        ← REST: POST /deliveryRuleManager
+│       ├── LogisticsService.java           ← Drools KieSession Management
+│       ├── Logistics.java                  ← Request/Response-Objekt für Drools
+│       ├── DecisionLogController.java      ← REST: GET /decisions/stats, POST /decisions/manual
+│       ├── DecisionLogService.java         ← Entscheidungen in DB schreiben
+│       ├── DecisionLog.java                ← JPA Entity (decision_log Tabelle)
+│       ├── DecisionLogRepository.java      ← JPA Repository
+│       ├── DecisionStatus.java             ← Enum: AUTO, MANUAL_REVIEW, INVALID_INPUT, FINAL
+│       ├── DecisionSource.java             ← Enum: DROOLS, HUMAN
+│       ├── DecisionStats.java              ← Record für KPI-Response
+│       ├── DeliveryType.java               ← Enum: STANDARD_MAIL, AIR_FREIGHT, ...
+│       ├── DeliveryCountry.java            ← Enum: AR, JP, RU, CH, DE, NOT_DEFINED
+│       ├── ManualDecisionRequest.java      ← DTO für POST /decisions/manual
+│       └── RuleNameListener.java           ← Drools AgendaEventListener
+├── src/main/resources/
+│   ├── application.properties              ← Grundkonfiguration (Profil, Regelversion)
+│   ├── application-h2.properties           ← H2 In-Memory für Entwicklung
+│   ├── application-mysql.properties        ← MySQL für Produktion
+│   └── rules/
+│       ├── Logistics.drl.xls               ← Excel-Regeltabelle (die Quelle)
+│       └── logistic_rules.drl              ← Referenzdokument
+├── src/test/java/com/example/droolstest/
+│   ├── DroolsTestApplicationTests.java     ← 11 Unit-Tests für Regeln
+│   └── LogisticsControllerTests.java       ← 13 Integrationstests für REST-API
+├── swa_case_2_worker/                      ← Camunda External Task Workers
+├── ANLEITUNG.md                            ← Nicht-technische Erklärung
+└── pom.xml                                 ← Maven Build-Konfiguration
+```
 
 ---
 
@@ -47,12 +77,12 @@ alle Entscheidungen in MySQL protokolliert und als Datenbasis für ein späteres
 
 Der `DroolsWorker` (Topic `group2_droolsEngine`) muss diese Statuscodes verarbeiten:
 
-| HTTP  | Bedeutung                                                         | Worker-Aktion                                                                                   |
-| ----- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `202` | AUTO — Drools hat eindeutige Versandart bestimmt                  | `complete(deliveryType, decisionStatus='AUTO', isManualDecision=false)`                         |
-| `206` | MANUAL_REVIEW — Regel existiert, schreibt menschliche Prüfung vor | `complete(deliveryType='MANUAL_REVIEW', decisionStatus='MANUAL_REVIEW', isManualDecision=true)` |
+| HTTP  | Bedeutung                                                                                        | Worker-Aktion                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `202` | AUTO — Drools hat eindeutige Versandart bestimmt                                                 | `complete(deliveryType, decisionStatus='AUTO', isManualDecision=false)`                         |
+| `206` | MANUAL_REVIEW — Regel existiert, schreibt menschliche Prüfung vor                                | `complete(deliveryType='MANUAL_REVIEW', decisionStatus='MANUAL_REVIEW', isManualDecision=true)` |
 | `400` | INVALID_INPUT — Ungültige Eingabe (weight ≤ 0, destination fehlt). Drools wird NICHT aufgerufen. | `complete(decisionStatus='INVALID_INPUT', isManualDecision=true)`                               |
-| `500` | Technischer Fehler (Drools-Engine nicht erreichbar etc.)          | `handleFailure(errorMessage, retries=3, retryTimeout=15000)`                                    |
+| `500` | Technischer Fehler (Drools-Engine nicht erreichbar etc.)                                         | `handleFailure(errorMessage, retries=3, retryTimeout=15000)`                                    |
 
 **Kein `handleBpmnError()` für fachliche Statuscodes.**
 Alle drei Werte (AUTO, MANUAL_REVIEW, INVALID_INPUT) sind normale `complete()`-Abschlüsse.
@@ -60,11 +90,11 @@ Nur technische Fehler (HTTP 5xx, Netzwerk-Timeout) lösen `handleFailure()` mit 
 
 **Semantische Abgrenzung:**
 
-| Status | Drools aufgerufen? | Bedeutung |
-|--------|-------------------|-----------|
-| `AUTO` | Ja | Drools hat eine eindeutige Versandart bestimmt |
-| `MANUAL_REVIEW` | Ja | Eine Drools-Regel schreibt explizit menschliche Prüfung vor (z.B. RU Sanktionen, JP > 200 kg, unbekanntes Land via Fallback-Regel) |
-| `INVALID_INPUT` | **Nein** | Eingabevalidierung fehlgeschlagen (weight ≤ 0, destination fehlt). Die Request erreicht Drools gar nicht. |
+| Status          | Drools aufgerufen? | Bedeutung                                                                                                                          |
+| --------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTO`          | Ja                 | Drools hat eine eindeutige Versandart bestimmt                                                                                     |
+| `MANUAL_REVIEW` | Ja                 | Eine Drools-Regel schreibt explizit menschliche Prüfung vor (z.B. RU Sanktionen, JP > 200 kg, unbekanntes Land via Fallback-Regel) |
+| `INVALID_INPUT` | **Nein**           | Eingabevalidierung fehlgeschlagen (weight ≤ 0, destination fehlt). Die Request erreicht Drools gar nicht.                          |
 
 > **Wichtig:** Ein echter «No Rule Match» kann in der aktuellen Regelkonfiguration nicht auftreten,
 > weil die Fallback-Regel (salience −1000) immer MANUAL_REVIEW setzt.
@@ -204,58 +234,56 @@ Response: `201 Created`
 
 ### Voraussetzungen
 
-- Java 21
-- Maven (Wrapper im Repo enthalten)
+- Java 21 ([Download](https://adoptium.net/))
+- Maven Wrapper ist im Repo enthalten — kein separates Maven nötig
 
 ### Entwicklung (H2 In-Memory)
 
-```bash
-./mvnw.cmd spring-boot:run
-# Profil h2 ist Standard (application.properties)
-# H2-Console: http://localhost:8080/h2-console
+```powershell
+.\mvnw.cmd spring-boot:run
 ```
+
+Standardprofil ist `h2` (konfiguriert in `application.properties`).
+Nach dem Start erreichbar unter `http://localhost:8080`.
+
+Health-Check:
+```
+GET http://localhost:8080/ping → {"ping": true}
+```
+
+H2-Konsole (nur im h2-Profil): `http://localhost:8080/h2-console`
 
 ### Produktion (MySQL)
 
-Umgebungsvariablen setzen (nie Credentials im Code oder Repository):
+Umgebungsvariablen setzen (Credentials nie im Code oder Repository):
 
 ```powershell
 $env:DB_URL      = "jdbc:mysql://192.168.111.4:3306/db_group2?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
 $env:DB_USERNAME = "group2"
 $env:DB_PASSWORD = "<Passwort aus sicherem Store>"
 ./mvnw.cmd spring-boot:run -Dspring.profiles.active=mysql
+```powershell
+.\mvnw.cmd spring-boot:run "-Dspring.profiles.active=mysql"
 ```
 
 Tabelle `decision_log` wird automatisch via `ddl-auto=update` angelegt.
 
-### Tests
+### Tests ausführen
 
-```bash
-./mvnw.cmd test
+```powershell
+.\mvnw.cmd test "-Dspring.profiles.active=h2"
 ```
 
----
-
-## Regelversion hochzählen
-
-Bei Änderungen an der Excel-Entscheidungstabelle `Logistics.drl.xls`:
-
-1. Excel anpassen
-2. `app.rule-version` in `application.properties` hochzählen (z.B. `1.1`)
-3. `logistic_rules.drl` synchron halten (Referenzdokument)
-4. Tests ausführen
-
-Die Regelversion wird in jedem `decision_log`-Eintrag gespeichert — so ist nachvollziehbar,
-welche Regelversion eine Entscheidung getroffen hat.
+24 Tests (11 Regel-Unit-Tests + 13 REST-Integrationstests). Alle Tests nutzen eine H2-In-Memory-Datenbank.
 
 ---
 
 ## Camunda-Topics
 
-| Topic                 | Worker             | Beschreibung                                                 |
-| --------------------- | ------------------ | ------------------------------------------------------------ |
-| `group2_droolsEngine` | DroolsWorker       | Ruft `/deliveryRuleManager` auf, schreibt Prozessvariablen   |
-| `group2_logDecision`  | DecisionLogWorker  | Ruft `/decisions/manual` auf (nur bei isManualDecision=true) |
-| `group2_requestAPI`   | SpeditionApiWorker | Ruft externe Speditions-API auf                              |
+| Topic | Worker | Beschreibung |
+|-------|--------|--------------|
+| `group2_droolsEngine` | DroolsWorker | Ruft `POST /deliveryRuleManager` auf, schreibt Prozessvariablen |
+| `group2_logDecision` | DecisionLogWorker | Ruft `POST /decisions/manual` auf (nur bei `isManualDecision=true`) |
+| `group2_requestAPI` | SpeditionApiWorker | Ruft externe Speditions-API auf |
 
-**Camunda-Zugangsdaten:** Nicht im Repository. Via Umgebungsvariable `CAMUNDA_USERNAME`/`CAMUNDA_PASSWORD`.
+**Camunda-Zugangsdaten** werden nicht im Repository gespeichert.

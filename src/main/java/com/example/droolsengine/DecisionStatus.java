@@ -17,7 +17,7 @@ package com.example.droolsengine;
  * - JP über 200kg → Sondergenehmigung nötig
  * - AR über 500kg → Kapazitätsprüfung nötig
  * - Unbekanntes Land (NOT_DEFINED) → System kann keine sichere Entscheidung
- *   treffen, Drools-Fallback-Regel greift → menschliche Prüfung
+ * treffen, Drools-Fallback-Regel greift → menschliche Prüfung
  *
  * INVALID_INPUT — Eingabedaten sind ungültig. Drools wurde NICHT aufgerufen,
  * weil die Validierung vorher fehlschlug.
