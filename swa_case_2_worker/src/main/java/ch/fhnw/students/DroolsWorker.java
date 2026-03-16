@@ -30,7 +30,7 @@ public class DroolsWorker {
 
     private static final Logger LOG = Logger.getLogger(DroolsWorker.class.getName());
 
-    private static final String DROOLS_SERVICE_URL = "http://localhost:8081/deliveryRuleManager";
+    private static final String DROOLS_SERVICE_URL = "http://localhost:8080/deliveryRuleManager";
     private static final String TOPIC = "group2_droolsEngine";
 
     private static final int MAX_RETRIES = 3;

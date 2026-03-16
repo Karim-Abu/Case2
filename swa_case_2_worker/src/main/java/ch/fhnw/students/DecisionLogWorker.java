@@ -26,7 +26,7 @@ public class DecisionLogWorker {
 
     private static final Logger LOG = Logger.getLogger(DecisionLogWorker.class.getName());
 
-    private static final String LOG_SERVICE_URL = "http://localhost:8081/decisions/manual";
+    private static final String LOG_SERVICE_URL = "http://localhost:8080/decisions/manual";
     private static final String TOPIC = "group2_logDecision";
 
     public static void register(ExternalTaskClient client) {
