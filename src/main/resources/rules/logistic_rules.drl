@@ -1,5 +1,8 @@
 package rules;
-//generated from Decision Table
+// REFERENZDOKUMENT: Diese DRL ist NICHT die Laufzeit-Quelle.
+// Die App lädt ausschliesslich rules/Logistics.drl.xls (Excel-Entscheidungstabelle).
+// Änderungen an Regeln: Primär in der Excel pflegen, dann diese DRL synchron halten.
+// Generiert mit SpreadsheetCompiler aus Logistics.drl.xls
 import com.example.droolsengine.Logistics;
 import com.example.droolsengine.DeliveryCountry;
 import com.example.droolsengine.DeliveryType;
@@ -33,6 +36,14 @@ rule "Delivery JP 0kg < x <= 200kg"
 		$logistics:Logistics($logistics.getDestination() in (DeliveryCountry.JP), $logistics.getWeight > (0), $logistics.getWeight <= (200))
 	then
 		$logistics.setDeliveryType(DeliveryType.AIR_FREIGHT);
+end
+
+// rule values at A13b, header at A4
+rule "Delivery JP > 200kg"
+	when
+		$logistics:Logistics($logistics.getDestination() in (DeliveryCountry.JP), $logistics.getWeight > (200))
+	then
+		$logistics.setDeliveryType(DeliveryType.MANUAL_REVIEW);
 end
 
 // rule values at A13, header at A4
@@ -69,7 +80,7 @@ end
 
 // rule values at A17, header at A4
 rule "Delivery Fallback"
-	salience 1000
+	salience -1000
 	when
 		$logistics:Logistics($logistics.getDeliveryType() == (null))
 	then

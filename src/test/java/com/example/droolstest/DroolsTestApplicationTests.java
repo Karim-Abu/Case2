@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest
 class DroolsTestApplicationTests {
@@ -89,6 +90,14 @@ class DroolsTestApplicationTests {
         Logistics logistics = new Logistics(50, "RS");
         logisticsService.logisticDecisionManager(logistics);
         assertEquals(DeliveryType.MANUAL_REVIEW, logistics.getDeliveryType());
+    }
+
+    @Test
+    public void testJapanOverweight_ExplicitManualReview() {
+        Logistics logistics = new Logistics(250, "JP");
+        logisticsService.logisticDecisionManager(logistics);
+        assertEquals(DeliveryType.MANUAL_REVIEW, logistics.getDeliveryType());
+        assertNotNull(logistics.getRuleName());
     }
 
 }

@@ -8,6 +8,8 @@ public class Logistics {
     private DeliveryType deliveryType;
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String deliveryCountryManualCheck;
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private String ruleName;
 
     public Logistics() {
     }
@@ -34,6 +36,9 @@ public class Logistics {
 
     public void setDestination(String destination) {
         this.destination = DeliveryCountry.fromString(destination);
+        if (this.destination == DeliveryCountry.NOT_DEFINED) {
+            this.deliveryCountryManualCheck = destination;
+        }
     }
 
     public DeliveryType getDeliveryType() {
@@ -46,6 +51,22 @@ public class Logistics {
 
     public String getDeliveryCountryManualCheck() {
         return deliveryCountryManualCheck;
+    }
+
+    public String getRuleName() {
+        return ruleName;
+    }
+
+    public void setRuleName(String ruleName) {
+        this.ruleName = ruleName;
+    }
+
+    @Override
+    public String toString() {
+        return "Logistics{weight=" + weight +
+                ", destination=" + destination +
+                ", deliveryType=" + deliveryType +
+                ", ruleName='" + ruleName + '\'' + '}';
     }
 
     public void setDeliveryCountryManualCheck(String deliveryCountryManualCheck) {
