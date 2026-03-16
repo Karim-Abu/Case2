@@ -20,6 +20,8 @@ public class ManualDecisionRequest {
      * Camunda Prozessinstanz-ID. Darf nicht leer sein — Pflicht für Verknüpfung.
      */
     private String processInstanceId;
+    private String selectedCarrier;
+    private String businessKey;
 
     public ManualDecisionRequest() {
     }
@@ -62,5 +64,21 @@ public class ManualDecisionRequest {
 
     public void setProcessInstanceId(String processInstanceId) {
         this.processInstanceId = processInstanceId;
+    }
+
+    public String getSelectedCarrier() {
+        return selectedCarrier;
+    }
+
+    public void setSelectedCarrier(String selectedCarrier) {
+        this.selectedCarrier = selectedCarrier;
+    }
+
+    public String getBusinessKey() {
+        return businessKey;
+    }
+
+    public void setBusinessKey(String businessKey) {
+        this.businessKey = businessKey;
     }
 }

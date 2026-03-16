@@ -12,10 +12,9 @@ import java.util.logging.Logger;
  * in die MySQL-DB.
  *
  * Logik:
- * - isManualDecision==true → POST /decisions/manual (MANUAL_REVIEW +
- * NO_RULE_MATCH)
- * - isManualDecision==false → Überspringen (AUTO wurde bereits im
- * LogisticsController geloggt)
+ * - manualDecisionReason vorhanden → POST /decisions/manual
+ *   (MANUAL_REVIEW + INVALID_INPUT, nach User Task)
+ * - sonst → Überspringen (AUTO wurde bereits im LogisticsController geloggt)
  *
  * Keine Duplikate: AUTO-Entscheidungen werden NUR vom Controller geloggt,
  * manuelle NUR vom Worker — nie beide.
@@ -26,7 +25,6 @@ public class DecisionLogWorker {
 
     private static final Logger LOG = Logger.getLogger(DecisionLogWorker.class.getName());
 
-    private static final String LOG_SERVICE_URL = "http://localhost:8080/decisions/manual";
     private static final String TOPIC = "group2_logDecision";
 
     public static void register(ExternalTaskClient client) {
@@ -36,27 +34,42 @@ public class DecisionLogWorker {
             LOG.info("Log-Worker: Task empfangen, id=" + externalTask.getId());
 
             try {
-                // Prozessvariablen lesen
+                // Prozessvariablen lesen — deliveryCountry mit Fallback auf destination
                 String country = (String) externalTask.getVariable("deliveryCountry");
-                Long weight = (Long) externalTask.getVariable("weight");
+                if (country == null || country.isBlank()) {
+                    country = (String) externalTask.getVariable("destination");
+                }
+                // weight: Camunda-Form kann Long oder Integer liefern → Number-Cast
+                Number weightNum = (Number) externalTask.getVariable("weight");
+                double weight = (weightNum != null) ? weightNum.doubleValue() : 0.0;
+
                 String deliveryType = (String) externalTask.getVariable("deliveryType");
                 String processInstanceId = externalTask.getProcessInstanceId();
+                String businessKey = externalTask.getBusinessKey();
                 String decisionStatus = (String) externalTask.getVariable("decisionStatus");
+                String selectedCarrier = (String) externalTask.getVariable("selectedCarrier");
 
-                Boolean isManual = (Boolean) externalTask.getVariable("isManualDecision");
                 String reason = (String) externalTask.getVariable("manualDecisionReason");
+                Boolean isManual = (Boolean) externalTask.getVariable("isManualDecision");
 
-                // Nur manuelle Entscheidungen loggen —
-                // automatische werden bereits vom Drools-Controller geloggt (kein Duplikat)
-                if (Boolean.TRUE.equals(isManual)) {
+                // Trigger: manualDecisionReason vorhanden (verlässlichster Indikator,
+                // da nur im User Task "Spedition manuell auswählen" gesetzt).
+                // Fallback: isManualDecision==true
+                boolean shouldLog = (reason != null && !reason.isBlank())
+                        || Boolean.TRUE.equals(isManual);
+
+                if (shouldLog) {
                     JSONObject logBody = new JSONObject();
                     logBody.put("deliveryCountry", country != null ? country : "UNKNOWN");
-                    logBody.put("weight", weight != null ? weight : 0);
+                    logBody.put("weight", weight);
                     logBody.put("deliveryType", deliveryType != null ? deliveryType : "UNKNOWN");
                     logBody.put("manualReason", reason != null ? reason : "Keine Begründung angegeben");
                     logBody.put("processInstanceId", processInstanceId != null ? processInstanceId : "");
+                    logBody.put("businessKey", businessKey != null ? businessKey : "");
+                    logBody.put("selectedCarrier", selectedCarrier != null ? selectedCarrier : "");
 
-                    JSONObject response = HttpHelper.post(LOG_SERVICE_URL, logBody);
+                    String logUrl = WorkerMain.DROOLS_URL + "/decisions/manual";
+                    JSONObject response = HttpHelper.post(logUrl, logBody);
 
                     LOG.info("Log-Worker: Manuelle Entscheidung protokolliert — "
                             + country + " / " + deliveryType

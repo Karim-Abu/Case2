@@ -12,24 +12,34 @@ import java.util.logging.Logger;
  *   2. group2_logDecision   — Protokolliert Entscheidungen in MySQL
  *   3. group2_requestAPI    — Ruft Speditions-API auf, verarbeitet Antwort
  *
- * Konfiguration:
- *   - CAMUNDA_URL: URL der Camunda Engine (Standard: http://group2:A0fBMV7M7qGbPh@192.168.111.3:8080/engine-rest)
- *   - DROOLS_URL:  URL des Drools-Service (Standard: http://localhost:8081)
+ * Konfiguration über Umgebungsvariablen (mit Fallback-Defaults):
+ *   - CAMUNDA_URL: URL der Camunda Engine
+ *   - DROOLS_URL:  Basis-URL des Drools-Service (ohne Pfad)
+ *   - API_URL:     Basis-URL der Speditions-API (ohne Pfad)
  */
 public class WorkerMain {
 
     private static final Logger LOG = Logger.getLogger(WorkerMain.class.getName());
 
-    private static final String CAMUNDA_BASE_URL =
-            "http://group2:A0fBMV7M7qGbPh@192.168.111.3:8080/engine-rest";
+    /** Camunda Engine REST-URL. Konfigurierbar via Umgebungsvariable CAMUNDA_URL. */
+    static final String CAMUNDA_URL = env("CAMUNDA_URL",
+            "http://group2:A0fBMV7M7qGbPh@192.168.111.3:8080/engine-rest");
+
+    /** Basis-URL des Drools-Service. Konfigurierbar via Umgebungsvariable DROOLS_URL. */
+    static final String DROOLS_URL = env("DROOLS_URL", "http://localhost:8080");
+
+    /** Basis-URL der Speditions-API. Konfigurierbar via Umgebungsvariable API_URL. */
+    static final String API_URL = env("API_URL", "http://192.168.111.5:8080");
 
     public static void main(String[] args) {
         LOG.info("=== Camunda External Task Workers (Case 2, Group 2) ===");
-        LOG.info("Camunda Engine: " + CAMUNDA_BASE_URL);
+        LOG.info("Camunda Engine: " + CAMUNDA_URL);
+        LOG.info("Drools-Service: " + DROOLS_URL);
+        LOG.info("Speditions-API: " + API_URL);
 
         ExternalTaskClient client = ExternalTaskClient
                 .create()
-                .baseUrl(CAMUNDA_BASE_URL)
+                .baseUrl(CAMUNDA_URL)
                 .asyncResponseTimeout(30000)
                 .build();
 
@@ -39,5 +49,10 @@ public class WorkerMain {
         SpeditionApiWorker.register(client);
 
         LOG.info("Alle Worker gestartet. Warte auf Tasks...");
+    }
+
+    private static String env(String key, String fallback) {
+        String value = System.getenv(key);
+        return (value != null && !value.isBlank()) ? value : fallback;
     }
 }

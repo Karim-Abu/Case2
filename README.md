@@ -28,13 +28,13 @@ Camunda 7 (BPMN-Prozess)
 
 ### Aufgabenteilung
 
-| Baustein | Verantwortung |
-|----------|---------------|
+| Baustein                               | Verantwortung                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------- |
 | **Drools Excel** (`Logistics.drl.xls`) | Geschäftsregeln: Welche Versandart gilt für Land + Gewicht? Kein Code. |
-| **LogisticsService** | Drools initialisieren, KieSession pro Request, Regelnamen erfassen |
-| **LogisticsController** | REST-Adapter: Drools-Ergebnis → HTTP 202/206/400, Entscheidung loggen |
-| **DecisionLogService** | Protokollierung in der Datenbank (DROOLS- und HUMAN-Einträge getrennt) |
-| **DecisionLogController** | REST-Endpunkte: KPI-Statistiken + manuelle Entscheidung speichern |
+| **LogisticsService**                   | Drools initialisieren, KieSession pro Request, Regelnamen erfassen     |
+| **LogisticsController**                | REST-Adapter: Drools-Ergebnis → HTTP 202/206/400, Entscheidung loggen  |
+| **DecisionLogService**                 | Protokollierung in der Datenbank (DROOLS- und HUMAN-Einträge getrennt) |
+| **DecisionLogController**              | REST-Endpunkte: KPI-Statistiken + manuelle Entscheidung speichern      |
 
 ## Projektstruktur
 
@@ -247,6 +247,7 @@ Standardprofil ist `h2` (konfiguriert in `application.properties`).
 Nach dem Start erreichbar unter `http://localhost:8080`.
 
 Health-Check:
+
 ```
 GET http://localhost:8080/ping → {"ping": true}
 ```
@@ -257,14 +258,14 @@ H2-Konsole (nur im h2-Profil): `http://localhost:8080/h2-console`
 
 Umgebungsvariablen setzen (Credentials nie im Code oder Repository):
 
-```powershell
+````powershell
 $env:DB_URL      = "jdbc:mysql://192.168.111.4:3306/db_group2?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
 $env:DB_USERNAME = "group2"
 $env:DB_PASSWORD = "<Passwort aus sicherem Store>"
 ./mvnw.cmd spring-boot:run -Dspring.profiles.active=mysql
 ```powershell
 .\mvnw.cmd spring-boot:run "-Dspring.profiles.active=mysql"
-```
+````
 
 Tabelle `decision_log` wird automatisch via `ddl-auto=update` angelegt.
 
@@ -280,10 +281,10 @@ Tabelle `decision_log` wird automatisch via `ddl-auto=update` angelegt.
 
 ## Camunda-Topics
 
-| Topic | Worker | Beschreibung |
-|-------|--------|--------------|
-| `group2_droolsEngine` | DroolsWorker | Ruft `POST /deliveryRuleManager` auf, schreibt Prozessvariablen |
-| `group2_logDecision` | DecisionLogWorker | Ruft `POST /decisions/manual` auf (nur bei `isManualDecision=true`) |
-| `group2_requestAPI` | SpeditionApiWorker | Ruft externe Speditions-API auf |
+| Topic                 | Worker             | Beschreibung                                                        |
+| --------------------- | ------------------ | ------------------------------------------------------------------- |
+| `group2_droolsEngine` | DroolsWorker       | Ruft `POST /deliveryRuleManager` auf, schreibt Prozessvariablen     |
+| `group2_logDecision`  | DecisionLogWorker  | Ruft `POST /decisions/manual` auf (nur bei `isManualDecision=true`) |
+| `group2_requestAPI`   | SpeditionApiWorker | Ruft externe Speditions-API auf                                     |
 
 **Camunda-Zugangsdaten** werden nicht im Repository gespeichert.

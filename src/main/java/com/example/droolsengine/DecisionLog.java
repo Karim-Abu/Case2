@@ -50,17 +50,17 @@ public class DecisionLog {
      * MANUAL_REVIEW).
      * Für HUMAN-Einträge: die tatsächlich gewählte Art des Sachbearbeiters.
      */
-    @Column(name = "delivery_type", nullable = false, length = 30)
+    @Column(name = "delivery_type", nullable = false, length = 50)
     private String deliveryType;
 
     /** Wer hat diese Entscheidung getroffen? DROOLS oder HUMAN. */
     @Enumerated(EnumType.STRING)
-    @Column(name = "decision_source", nullable = false, length = 10)
+    @Column(name = "decision_source", nullable = false, length = 20)
     private DecisionSource decisionSource;
 
     /** Status der Entscheidung im Prozesskontext. Siehe DecisionStatus-Javadoc. */
     @Enumerated(EnumType.STRING)
-    @Column(name = "decision_status", nullable = false, length = 20)
+    @Column(name = "decision_status", nullable = false, length = 30)
     private DecisionStatus decisionStatus;
 
     /**
@@ -68,7 +68,7 @@ public class DecisionLog {
      * Null bei HUMAN-Einträgen.
      * "Delivery Fallback" → kein spezifischer Treffer (NO_RULE_MATCH-Fall).
      */
-    @Column(name = "rule_name", length = 100)
+    @Column(name = "rule_name", length = 255)
     private String ruleName;
 
     /**
@@ -76,7 +76,7 @@ public class DecisionLog {
      * Frei konfigurierbar via app.rule-version in application.properties.
      * Null bei HUMAN-Einträgen.
      */
-    @Column(name = "rule_version", length = 20)
+    @Column(name = "rule_version", length = 50)
     private String ruleVersion;
 
     /**
@@ -95,6 +95,14 @@ public class DecisionLog {
      */
     @Column(name = "process_instance_id", length = 100)
     private String processInstanceId;
+
+    /** Camunda Business-Key (z.B. Sendungsnummer). */
+    @Column(name = "business_key", length = 100)
+    private String businessKey;
+
+    /** Vom Drools oder Sachbearbeiter gewählter Carrier. */
+    @Column(name = "selected_carrier", length = 100)
+    private String selectedCarrier;
 
     /** Wird automatisch gesetzt via @PrePersist. Nie manuell setzen. */
     @Column(name = "timestamp", nullable = false, updatable = false)
@@ -121,6 +129,8 @@ public class DecisionLog {
         this.ruleVersion = builder.ruleVersion;
         this.manualReason = builder.manualReason;
         this.processInstanceId = builder.processInstanceId;
+        this.businessKey = builder.businessKey;
+        this.selectedCarrier = builder.selectedCarrier;
     }
 
     // --- Builder ---
@@ -139,6 +149,8 @@ public class DecisionLog {
         private String ruleVersion;
         private String manualReason;
         private String processInstanceId;
+        private String businessKey;
+        private String selectedCarrier;
 
         public Builder deliveryCountry(String v) {
             this.deliveryCountry = v;
@@ -182,6 +194,16 @@ public class DecisionLog {
 
         public Builder processInstanceId(String v) {
             this.processInstanceId = v;
+            return this;
+        }
+
+        public Builder businessKey(String v) {
+            this.businessKey = v;
+            return this;
+        }
+
+        public Builder selectedCarrier(String v) {
+            this.selectedCarrier = v;
             return this;
         }
 
@@ -236,6 +258,14 @@ public class DecisionLog {
 
     public String getProcessInstanceId() {
         return processInstanceId;
+    }
+
+    public String getBusinessKey() {
+        return businessKey;
+    }
+
+    public String getSelectedCarrier() {
+        return selectedCarrier;
     }
 
     public LocalDateTime getTimestamp() {

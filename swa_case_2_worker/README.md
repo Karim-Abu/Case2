@@ -11,11 +11,11 @@ und melden das Ergebnis zurück.
 
 ## Die drei Workers
 
-| Worker | Camunda-Topic | Aufgabe |
-|--------|---------------|---------|
-| **DroolsWorker** | `group2_droolsEngine` | Sendet Zielland + Gewicht an die Drools Engine (`POST /deliveryRuleManager`). Wertet den HTTP-Statuscode aus und schreibt `decisionStatus`, `deliveryType` und `isManualDecision` als Prozessvariablen zurück. |
-| **DecisionLogWorker** | `group2_logDecision` | Wird nur aktiv, wenn `isManualDecision=true`. Protokolliert die manuelle Entscheidung des Mitarbeiters in der Datenbank (`POST /decisions/manual`). |
-| **SpeditionApiWorker** | `group2_requestAPI` | Sendet den fertigen Transportauftrag an die externe Speditions-API. Evaluiert die Antwort (Trackingnummer, Abholdatum) oder löst bei Ablehnung einen BPMN-Error aus. |
+| Worker                 | Camunda-Topic         | Aufgabe                                                                                                                                                                                                        |
+| ---------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DroolsWorker**       | `group2_droolsEngine` | Sendet Zielland + Gewicht an die Drools Engine (`POST /deliveryRuleManager`). Wertet den HTTP-Statuscode aus und schreibt `decisionStatus`, `deliveryType` und `isManualDecision` als Prozessvariablen zurück. |
+| **DecisionLogWorker**  | `group2_logDecision`  | Wird nur aktiv, wenn `isManualDecision=true`. Protokolliert die manuelle Entscheidung des Mitarbeiters in der Datenbank (`POST /decisions/manual`).                                                            |
+| **SpeditionApiWorker** | `group2_requestAPI`   | Sendet den fertigen Transportauftrag an die externe Speditions-API. Evaluiert die Antwort (Trackingnummer, Abholdatum) oder löst bei Ablehnung einen BPMN-Error aus.                                           |
 
 ---
 
@@ -58,14 +58,14 @@ swa_case_2_worker/
 
 ## Fehlerbehandlung
 
-| Situation | Behandlung | Auswirkung im Prozess |
-|-----------|------------|----------------------|
-| **AUTO** (HTTP 202) | `complete()` mit `decisionStatus=AUTO` | Prozess fährt automatisch weiter |
-| **MANUAL_REVIEW** (HTTP 206) | `complete()` mit `decisionStatus=MANUAL_REVIEW` | XOR-Gateway → User Task |
-| **INVALID_INPUT** (HTTP 400) | `complete()` mit `decisionStatus=INVALID_INPUT` | XOR-Gateway → User Task |
-| **Technischer Fehler** (HTTP 5xx, Timeout) | `handleFailure()` mit 3 Retries (je 15s) | Nach 3 Fehlversuchen: Camunda Incident |
-| **Transport abgelehnt** (SpeditionApiWorker) | `handleBpmnError("TRANSPORT_REJECTED")` | Boundary Error Event → User Task |
-| **Logging-Fehler** (DecisionLogWorker) | Task wird trotzdem abgeschlossen | Kein Prozessstopp |
+| Situation                                    | Behandlung                                      | Auswirkung im Prozess                  |
+| -------------------------------------------- | ----------------------------------------------- | -------------------------------------- |
+| **AUTO** (HTTP 202)                          | `complete()` mit `decisionStatus=AUTO`          | Prozess fährt automatisch weiter       |
+| **MANUAL_REVIEW** (HTTP 206)                 | `complete()` mit `decisionStatus=MANUAL_REVIEW` | XOR-Gateway → User Task                |
+| **INVALID_INPUT** (HTTP 400)                 | `complete()` mit `decisionStatus=INVALID_INPUT` | XOR-Gateway → User Task                |
+| **Technischer Fehler** (HTTP 5xx, Timeout)   | `handleFailure()` mit 3 Retries (je 15s)        | Nach 3 Fehlversuchen: Camunda Incident |
+| **Transport abgelehnt** (SpeditionApiWorker) | `handleBpmnError("TRANSPORT_REJECTED")`         | Boundary Error Event → User Task       |
+| **Logging-Fehler** (DecisionLogWorker)       | Task wird trotzdem abgeschlossen                | Kein Prozessstopp                      |
 
 Fachliche Statuscodes (AUTO, MANUAL_REVIEW, INVALID_INPUT) lösen **kein** `handleBpmnError()` aus.
 Nur der SpeditionApiWorker nutzt `handleBpmnError()` bei Transportablehnung.
@@ -89,6 +89,7 @@ Nur der SpeditionApiWorker nutzt `handleBpmnError()` bei Transportablehnung.
 ```
 
 Ausgabe bei erfolgreichem Start:
+
 ```
 === Camunda External Task Workers (Case 2, Group 2) ===
 Worker registriert: group2_droolsEngine

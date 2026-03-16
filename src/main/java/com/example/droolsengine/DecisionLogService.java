@@ -40,7 +40,7 @@ public class DecisionLogService {
      * @param processInstanceId Camunda-Prozessinstanz-ID. Kann null sein (z.B. bei
      *                          direkten REST-Tests).
      */
-    public void logDroolsDecision(Logistics logistics, String processInstanceId) {
+    public void logDroolsDecision(Logistics logistics, String processInstanceId, String businessKey) {
         DecisionStatus status = (logistics.getDeliveryType() == DeliveryType.MANUAL_REVIEW)
                 ? DecisionStatus.MANUAL_REVIEW
                 : DecisionStatus.AUTO;
@@ -58,11 +58,12 @@ public class DecisionLogService {
                 .ruleName(logistics.getRuleName())
                 .ruleVersion(ruleVersion)
                 .processInstanceId(processInstanceId)
+                .businessKey(businessKey)
                 .build();
 
         repository.save(entry);
-        log.info("Drools-Entscheidung protokolliert: status={}, deliveryType={}, processInstanceId={}",
-                status, logistics.getDeliveryType(), processInstanceId);
+        log.info("Drools-Entscheidung protokolliert: status={}, deliveryType={}, processInstanceId={}, businessKey={}",
+                status, logistics.getDeliveryType(), processInstanceId, businessKey);
     }
 
     /**
@@ -91,6 +92,8 @@ public class DecisionLogService {
                 .decisionStatus(DecisionStatus.FINAL)
                 .manualReason(request.getManualReason())
                 .processInstanceId(request.getProcessInstanceId())
+                .businessKey(request.getBusinessKey())
+                .selectedCarrier(request.getSelectedCarrier())
                 .build();
 
         repository.save(entry);

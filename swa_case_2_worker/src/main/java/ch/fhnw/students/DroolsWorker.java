@@ -4,6 +4,7 @@ import org.camunda.bpm.client.ExternalTaskClient;
 import org.json.JSONObject;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -30,7 +31,6 @@ public class DroolsWorker {
 
     private static final Logger LOG = Logger.getLogger(DroolsWorker.class.getName());
 
-    private static final String DROOLS_SERVICE_URL = "http://localhost:8080/deliveryRuleManager";
     private static final String TOPIC = "group2_droolsEngine";
 
     private static final int MAX_RETRIES = 3;
@@ -44,9 +44,16 @@ public class DroolsWorker {
 
             try {
                 // 1. Prozessvariablen lesen
+                // deliveryCountry (User Task "Angaben zum Kunden") mit Fallback auf
+                // destination (User Task "Spedition manuell auswählen")
                 String country = (String) externalTask.getVariable("deliveryCountry");
-                Long weight = (Long) externalTask.getVariable("weight");
+                if (country == null || country.isBlank()) {
+                    country = (String) externalTask.getVariable("destination");
+                }
+                // weight: Camunda-Form kann Long oder Integer liefern → Number-Cast
+                Number weightNum = (Number) externalTask.getVariable("weight");
                 String processInstanceId = externalTask.getProcessInstanceId();
+                String businessKey = externalTask.getBusinessKey();
 
                 // 2. Inputvalidierung — bei fehlenden Daten direkt INVALID_INPUT
                 // Drools wird nicht aufgerufen. Das ist kein fachliches Regelresultat,
@@ -58,24 +65,32 @@ public class DroolsWorker {
                             "INVALID_INPUT", "MANUAL_REVIEW", true);
                     return;
                 }
-                if (weight == null || weight <= 0) {
+                if (weightNum == null || weightNum.longValue() <= 0) {
                     LOG.info("Drools-Worker: Gewicht ungültig — INVALID_INPUT");
                     completeWithStatus(externalTaskService, externalTask,
                             "INVALID_INPUT", "MANUAL_REVIEW", true);
                     return;
                 }
 
+                long weight = weightNum.longValue();
+
                 // 3. Drools-Service aufrufen
                 JSONObject requestBody = new JSONObject();
                 requestBody.put("weight", weight);
                 requestBody.put("destination", country);
 
-                String url = DROOLS_SERVICE_URL;
+                String url = WorkerMain.DROOLS_URL + "/deliveryRuleManager";
+
+                // processInstanceId + businessKey via Header (Controller erwartet Header)
+                Map<String, String> headers = new HashMap<>();
                 if (processInstanceId != null && !processInstanceId.isBlank()) {
-                    url += "?processInstanceId=" + processInstanceId;
+                    headers.put("X-Process-Instance-Id", processInstanceId);
+                }
+                if (businessKey != null && !businessKey.isBlank()) {
+                    headers.put("X-Business-Key", businessKey);
                 }
 
-                JSONObject response = HttpHelper.post(url, requestBody);
+                JSONObject response = HttpHelper.post(url, requestBody, headers);
                 int statusCode = response.getInt("statusCode");
 
                 // 4. Ergebnis auswerten — ALLE fachlichen Statuscodes → complete()
@@ -137,7 +152,7 @@ public class DroolsWorker {
 
     /**
      * Hilfsmethode: Schliesst den Task mit fachlichem Status ab.
-     * Wird für MANUAL_REVIEW und NO_RULE_MATCH verwendet —
+     * Wird für MANUAL_REVIEW und INVALID_INPUT verwendet —
      * beide routen via XOR-Gateway zum User Task.
      */
     private static void completeWithStatus(

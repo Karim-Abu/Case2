@@ -21,9 +21,14 @@ import java.util.logging.Logger;
  * 2. Plausibilitätsprüfung: Alle API-Antwortfelder werden validiert,
  * bevor sie als Prozessvariablen gesetzt werden.
  *
- * 3. Fehlerbehandlung:
- * - Fachliche Ablehnung (HTTP != 202) → BPMN Error → Hotline-Fallback
- * - Technische Fehler (Timeout, Netzwerk) → handleFailure mit Retries
+ * 3. Fehlerbehandlung (explizite Trennung fachlich / technisch):
+ * - HTTP 202 → complete() mit statusCode=202 → BPMN-Gateway "ja"-Pfad
+ * - HTTP 4xx (nicht 429) → complete() mit statusCode → BPMN-Gateway "nein"-Pfad
+ *   → "Spedition telefonisch kontaktieren"
+ * - HTTP 429/5xx / Exception → handleFailure() mit Retries → Incident
+ *
+ * BPMN-Gateway "Lieferung in Ordnung?" prüft: ${statusCode==202} / ${statusCode!=202}
+ * Deshalb KEIN handleBpmnError() — es gibt kein Error Boundary Event auf diesem Task.
  *
  * 4. Idempotenz-Hinweis: Bei Retries könnte ein doppelter Auftrag entstehen.
  * In einer Produktionsumgebung sollte vor dem POST ein GET/DB-Check erfolgen.
@@ -32,9 +37,7 @@ public class SpeditionApiWorker {
 
     private static final Logger LOG = Logger.getLogger(SpeditionApiWorker.class.getName());
 
-    private static final String API_URL = "http://192.168.111.5:8080/v1/consignment/request";
     private static final String TOPIC = "group2_requestAPI";
-    private static final String BPMN_ERROR_REJECTED = "TRANSPORT_REJECTED";
 
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_TIMEOUT_MS = 15000L;
@@ -48,47 +51,67 @@ public class SpeditionApiWorker {
             try {
                 // 1. Prozessvariablen lesen und validieren
                 String street = getStringVar(externalTask, "deliveryAddressStreet");
-                Long houseNumber = (Long) externalTask.getVariable("deliveryAddressHouseNumber");
+                // houseNumber: Camunda-Form kann Long oder Integer liefern → Number-Cast
+                Number houseNumberNum = (Number) externalTask.getVariable("deliveryAddressHouseNumber");
                 String postalCode = getStringVar(externalTask, "deliveryPostalCode");
                 String city = getStringVar(externalTask, "deliveryCity");
                 String country = getStringVar(externalTask, "deliveryCountry");
                 String phone = getStringVar(externalTask, "customerPhone");
-                Long weight = (Long) externalTask.getVariable("weight");
+                // weight: ebenfalls Number-Cast
+                Number weightNum = (Number) externalTask.getVariable("weight");
                 String customerId = getStringVar(externalTask, "customerId");
+                String deliveryType = getStringVar(externalTask, "deliveryType");
+                String selectedCarrier = getStringVar(externalTask, "selectedCarrier");
 
-                // Pflichtfelder prüfen
-                if (city == null || street == null || weight == null || customerId == null) {
+                // Pflichtfelder prüfen — bei fehlenden Daten complete() mit statusCode
+                // (NICHT handleBpmnError! Kein Error Boundary Event im BPMN)
+                if (city == null || street == null || weightNum == null || customerId == null) {
                     LOG.warning("Speditions-Worker: Pflichtfelder fehlen");
-                    externalTaskService.handleBpmnError(externalTask, BPMN_ERROR_REJECTED,
+                    HashMap<String, Object> errorVars = new HashMap<>();
+                    errorVars.put("statusCode", 400);
+                    errorVars.put("transportError",
                             "Versanddaten unvollständig — bitte telefonisch beauftragen");
+                    externalTaskService.complete(externalTask, errorVars);
                     return;
                 }
 
+                long weight = weightNum.longValue();
+
                 // 2. Adresse zusammenbauen
                 String destination = city + ", " + street
-                        + (houseNumber != null ? " " + houseNumber : "");
+                        + (houseNumberNum != null ? " " + houseNumberNum.longValue() : "");
 
-                // 3. API-Request bauen
+                // 3. API-Request bauen — inkl. deliveryType und selectedCarrier
                 JSONObject requestBody = new JSONObject();
                 requestBody.put("destination", destination);
                 requestBody.put("customerReference", customerId);
                 requestBody.put("recepientPhone", phone != null ? phone : "");
                 requestBody.put("weight", weight);
+                if (deliveryType != null && !deliveryType.isBlank()) {
+                    requestBody.put("deliveryType", deliveryType);
+                }
+                if (selectedCarrier != null && !selectedCarrier.isBlank()) {
+                    requestBody.put("selectedCarrier", selectedCarrier);
+                }
 
                 LOG.info("Speditions-Worker: Sende API-Request — " + destination + ", " + weight + "kg");
 
                 // 4. API aufrufen
-                JSONObject response = HttpHelper.post(API_URL, requestBody);
+                String apiUrl = WorkerMain.API_URL + "/v1/consignment/request";
+                JSONObject response = HttpHelper.post(apiUrl, requestBody);
                 int statusCode = response.getInt("statusCode");
 
-                // 5. Ergebnis auswerten — Abstraktionsschicht
+                // 5. Ergebnis auswerten — explizite Trennung fachlich / technisch
                 if (statusCode == 202) {
                     // Erfolg — Antwort validieren und Variablen setzen
                     HashMap<String, Object> result = extractAndValidateResponse(response);
                     if (result == null) {
-                        // Plausibilitätsprüfung fehlgeschlagen
-                        externalTaskService.handleBpmnError(externalTask, BPMN_ERROR_REJECTED,
+                        // Plausibilitätsprüfung fehlgeschlagen — fachlich, nicht technisch
+                        result = new HashMap<>();
+                        result.put("statusCode", 422);
+                        result.put("transportError",
                                 "Speditionsantwort unvollständig — bitte telefonisch klären");
+                        externalTaskService.complete(externalTask, result);
                         return;
                     }
 
@@ -99,7 +122,7 @@ public class SpeditionApiWorker {
                     externalTaskService.complete(externalTask, result);
 
                 } else if (isTechnicalError(statusCode)) {
-                    // Technischer Fehler — Retry mit Backoff (NICHT fachlich!)
+                    // Technischer / transienter Fehler — Retry mit Backoff
                     String reason = mapStatusToBusinessMessage(statusCode);
                     LOG.warning("Speditions-Worker: Technischer Fehler (" + statusCode + ") — Retry");
                     externalTaskService.handleFailure(externalTask,
@@ -108,15 +131,19 @@ public class SpeditionApiWorker {
                             MAX_RETRIES, RETRY_TIMEOUT_MS);
 
                 } else {
-                    // Fachliche Ablehnung — BPMN Error → Hotline-Fallback
+                    // Fachliche Ablehnung (4xx ausser 429) — complete() mit statusCode
+                    // BPMN-Gateway routet über ${statusCode!=202} zum "telefonisch"-Pfad
                     String reason = mapStatusToBusinessMessage(statusCode);
                     LOG.info("Speditions-Worker: Fachliche Ablehnung — " + reason);
 
-                    externalTaskService.handleBpmnError(externalTask, BPMN_ERROR_REJECTED, reason);
+                    HashMap<String, Object> errorVars = new HashMap<>();
+                    errorVars.put("statusCode", statusCode);
+                    errorVars.put("transportError", reason);
+                    externalTaskService.complete(externalTask, errorVars);
                 }
 
             } catch (Exception e) {
-                // Technischer Fehler — Retry mit Backoff
+                // Technischer Fehler (Netzwerk, Timeout) — Retry mit Backoff
                 LOG.severe("Speditions-Worker: Technischer Fehler — " + e.getMessage());
                 externalTaskService.handleFailure(externalTask,
                         "Speditions-API nicht erreichbar",
