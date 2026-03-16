@@ -51,22 +51,28 @@ Der `DroolsWorker` (Topic `group2_droolsEngine`) muss diese Statuscodes verarbei
 | ----- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `202` | AUTO — Drools hat eindeutige Versandart bestimmt                  | `complete(deliveryType, decisionStatus='AUTO', isManualDecision=false)`                         |
 | `206` | MANUAL_REVIEW — Regel existiert, schreibt menschliche Prüfung vor | `complete(deliveryType='MANUAL_REVIEW', decisionStatus='MANUAL_REVIEW', isManualDecision=true)` |
-| `400` | NO_RULE_MATCH — Ungültige Eingabe (weight ≤ 0, destination fehlt) | `complete(decisionStatus='NO_RULE_MATCH', isManualDecision=true)`                               |
+| `400` | INVALID_INPUT — Ungültige Eingabe (weight ≤ 0, destination fehlt). Drools wird NICHT aufgerufen. | `complete(decisionStatus='INVALID_INPUT', isManualDecision=true)`                               |
 | `500` | Technischer Fehler (Drools-Engine nicht erreichbar etc.)          | `handleFailure(errorMessage, retries=3, retryTimeout=15000)`                                    |
 
 **Kein `handleBpmnError()` für fachliche Statuscodes.**
-Alle drei Werte (AUTO, MANUAL_REVIEW, NO_RULE_MATCH) sind normale `complete()`-Abschlüsse.
+Alle drei Werte (AUTO, MANUAL_REVIEW, INVALID_INPUT) sind normale `complete()`-Abschlüsse.
 Nur technische Fehler (HTTP 5xx, Netzwerk-Timeout) lösen `handleFailure()` mit Retries aus.
 
-**Wichtig:** `MANUAL_REVIEW` ≠ `NO_RULE_MATCH`.
+**Semantische Abgrenzung:**
 
-- `MANUAL_REVIEW`: Eine Drools-Regel hat explizit menschliche Prüfung vorgeschrieben (z.B. RU wegen Sanktionen, JP > 200kg).
-- `NO_RULE_MATCH`: Keine Regel traf zu / ungültige Eingabedaten. Durch HTTP 400 ausgelöst.
+| Status | Drools aufgerufen? | Bedeutung |
+|--------|-------------------|-----------|
+| `AUTO` | Ja | Drools hat eine eindeutige Versandart bestimmt |
+| `MANUAL_REVIEW` | Ja | Eine Drools-Regel schreibt explizit menschliche Prüfung vor (z.B. RU Sanktionen, JP > 200 kg, unbekanntes Land via Fallback-Regel) |
+| `INVALID_INPUT` | **Nein** | Eingabevalidierung fehlgeschlagen (weight ≤ 0, destination fehlt). Die Request erreicht Drools gar nicht. |
+
+> **Wichtig:** Ein echter «No Rule Match» kann in der aktuellen Regelkonfiguration nicht auftreten,
+> weil die Fallback-Regel (salience −1000) immer MANUAL_REVIEW setzt.
 
 Das XOR-Gateway im BPMN routet anhand der Prozessvariable `decisionStatus`:
 
 - `${decisionStatus == 'AUTO'}` → direkt zu „Daten validieren"
-- `${decisionStatus == 'MANUAL_REVIEW' || decisionStatus == 'NO_RULE_MATCH'}` → User Task „Spedition manuell auswählen"
+- `${decisionStatus == 'MANUAL_REVIEW' || decisionStatus == 'INVALID_INPUT'}` → User Task „Spedition manuell auswählen"
 
 ---
 
@@ -101,7 +107,7 @@ Tabelle `decision_log` — zwei Einträge pro manuellem Eingriff, verknüpft via
 | `weight`              | DOUBLE       | Gewicht in kg                                     |
 | `delivery_type`       | VARCHAR(30)  | z.B. "STANDARD_MAIL"                              |
 | `decision_source`     | ENUM         | `DROOLS` oder `HUMAN`                             |
-| `decision_status`     | ENUM         | `AUTO`, `MANUAL_REVIEW`, `NO_RULE_MATCH`, `FINAL` |
+| `decision_status`     | ENUM         | `AUTO`, `MANUAL_REVIEW`, `INVALID_INPUT`, `FINAL` |
 | `rule_name`           | VARCHAR(100) | Name der gefeuerten Drools-Regel (null bei HUMAN) |
 | `rule_version`        | VARCHAR(20)  | Aus `app.rule-version` (null bei HUMAN)           |
 | `manual_reason`       | VARCHAR(500) | Begründung manueller Entscheid (null bei DROOLS)  |

@@ -23,8 +23,9 @@ import java.util.Map;
  * 206 PARTIAL_CONTENT → MANUAL_REVIEW: Drools-Regel schreibt menschliche
  * Prüfung vor.
  * Worker ruft complete(decisionStatus='MANUAL_REVIEW') — KEIN bpmnError!
- * 400 BAD_REQUEST → NO_RULE_MATCH: Ungültige Eingabedaten.
- * Worker ruft complete(decisionStatus='NO_RULE_MATCH') — KEIN bpmnError!
+ * 400 BAD_REQUEST → INVALID_INPUT: Eingabedaten ungültig, Drools NICHT
+ * aufgerufen.
+ * Worker ruft complete(decisionStatus='INVALID_INPUT') — KEIN bpmnError!
  * 500 INTERNAL ERROR → Technischer Fehler.
  * Worker ruft handleFailure() mit Retries auf.
  *
@@ -32,7 +33,13 @@ import java.util.Map;
  * Prozessabschlüsse.
  * Das XOR-Gateway im BPMN routet anhand von decisionStatus:
  * - AUTO → direkt zu „Daten validieren"
- * - MANUAL_REVIEW || NO_RULE_MATCH → User Task „Spedition manuell auswählen"
+ * - MANUAL_REVIEW || INVALID_INPUT → User Task „Spedition manuell auswählen"
+ *
+ * Wichtig: MANUAL_REVIEW ≠ INVALID_INPUT
+ * - MANUAL_REVIEW: Drools wurde aufgerufen, Regel schreibt menschliche Prüfung
+ *   vor (z.B. RU, JP>200kg, unbekanntes Land)
+ * - INVALID_INPUT: Validierung fehlgeschlagen, Drools wurde NIE aufgerufen
+ *   (z.B. weight ≤ 0, destination fehlt)
  *
  * Camunda-Worker übergibt optional den Header X-Process-Instance-Id für die
  * Verknüpfung von DROOLS- und HUMAN-Einträgen in decision_log.
@@ -62,11 +69,13 @@ public class LogisticsController {
             @RequestBody Logistics logistics,
             @RequestHeader(value = "X-Process-Instance-Id", required = false) String processInstanceId) {
 
-        // --- Input-Validierung → NO_RULE_MATCH (400) ---
+        // --- Input-Validierung → INVALID_INPUT (400) ---
+        // Drools wird bei ungültigen Eingaben NICHT aufgerufen.
+        // Das ist kein fachliches Drools-Ergebnis, sondern ein Validierungsfehler.
         if (logistics.getWeight() <= 0) {
             log.warn("Abgelehnt: weight={} ist ungültig (muss > 0 sein)", logistics.getWeight());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                    "decisionStatus", "NO_RULE_MATCH",
+                    "decisionStatus", "INVALID_INPUT",
                     "reason", "Gewicht muss > 0 sein",
                     "weight", logistics.getWeight(),
                     "destination", logistics.getDestination() != null ? logistics.getDestination().name() : "null"));
@@ -74,7 +83,7 @@ public class LogisticsController {
         if (logistics.getDestination() == null) {
             log.warn("Abgelehnt: destination fehlt im Request");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                    "decisionStatus", "NO_RULE_MATCH",
+                    "decisionStatus", "INVALID_INPUT",
                     "reason", "Zielland fehlt im Request",
                     "weight", logistics.getWeight()));
         }

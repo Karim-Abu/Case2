@@ -17,7 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Testet die drei fachlichen Pfade, die der Camunda-Worker verarbeiten muss:
  * - 202 → AUTO (XOR-Gateway: decisionStatus == 'AUTO')
  * - 206 → MANUAL_REVIEW (XOR-Gateway: decisionStatus == 'MANUAL_REVIEW')
- * - 400 → NO_RULE_MATCH (XOR-Gateway: decisionStatus == 'NO_RULE_MATCH')
+ * - 400 → INVALID_INPUT (XOR-Gateway: decisionStatus == 'INVALID_INPUT')
  *
  * Zudem: Edge-Cases und technische Fehlerfälle.
  */
@@ -102,26 +102,26 @@ class LogisticsControllerTests {
     }
 
     // ──────────────────────────────────────────────
-    // E2E: NO_RULE_MATCH (HTTP 400)
+    // INVALID_INPUT (HTTP 400) — Validierungsfehler, Drools NICHT aufgerufen
     // ──────────────────────────────────────────────
 
     @Test
-    void e2e_noRuleMatch_weightZero_returns400() throws Exception {
+    void invalidInput_weightZero_returns400() throws Exception {
         mockMvc.perform(post("/deliveryRuleManager")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"weight\": 0, \"destination\": \"CH\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.decisionStatus").value("NO_RULE_MATCH"))
+                .andExpect(jsonPath("$.decisionStatus").value("INVALID_INPUT"))
                 .andExpect(jsonPath("$.reason").exists());
     }
 
     @Test
-    void e2e_noRuleMatch_negativeWeight_returns400() throws Exception {
+    void invalidInput_negativeWeight_returns400() throws Exception {
         mockMvc.perform(post("/deliveryRuleManager")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"weight\": -5, \"destination\": \"AR\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.decisionStatus").value("NO_RULE_MATCH"));
+                .andExpect(jsonPath("$.decisionStatus").value("INVALID_INPUT"));
     }
 
     // ──────────────────────────────────────────────
