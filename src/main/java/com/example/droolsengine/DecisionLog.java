@@ -37,7 +37,7 @@ public class DecisionLog {
     private Long id;
 
     /** ISO 3166 A-2 Ländercode, z.B. "AR", "JP", "RU". */
-    @Column(name = "delivery_country", nullable = false, length = 10)
+    @Column(name = "delivery_country", nullable = false, length = 20)
     private String deliveryCountry;
 
     /** Gewicht der Sendung in kg. */
