@@ -128,27 +128,39 @@ Regeln werden ausschliesslich in `src/main/resources/rules/Logistics.drl.xls` ge
 
 ## Decision Log Schema
 
-Tabelle `decision_log` — zwei Einträge pro manuellem Eingriff, verknüpft via `process_instance_id`:
+Tabelle `decision_log` — bei manuellen Entscheidungen zwei Einträge pro Prozessinstanz, verknüpft via `process_instance_id`:
 
-| Spalte                | Typ          | Bedeutung                                         |
-| --------------------- | ------------ | ------------------------------------------------- |
-| `id`                  | BIGINT PK    | Auto-Increment                                    |
-| `delivery_country`    | VARCHAR(10)  | ISO 3166 A-2, z.B. "AR"                           |
-| `weight`              | DOUBLE       | Gewicht in kg                                     |
-| `delivery_type`       | VARCHAR(30)  | z.B. "STANDARD_MAIL"                              |
-| `decision_source`     | ENUM         | `DROOLS` oder `HUMAN`                             |
-| `decision_status`     | ENUM         | `AUTO`, `MANUAL_REVIEW`, `INVALID_INPUT`, `FINAL` |
-| `rule_name`           | VARCHAR(100) | Name der gefeuerten Drools-Regel (null bei HUMAN) |
-| `rule_version`        | VARCHAR(20)  | Aus `app.rule-version` (null bei HUMAN)           |
-| `manual_reason`       | VARCHAR(500) | Begründung manueller Entscheid (null bei DROOLS)  |
-| `process_instance_id` | VARCHAR(100) | Camunda Prozessinstanz-ID                         |
-| `timestamp`           | DATETIME     | Automatisch gesetzt via @PrePersist               |
+| Spalte                | Typ          | Bedeutung                                                          |
+| --------------------- | ------------ | ------------------------------------------------------------------ |
+| `id`                  | BIGINT PK    | Auto-Increment                                                     |
+| `delivery_country`    | VARCHAR(10)  | ISO 3166 A-2, z.B. "AR"                                           |
+| `weight`              | DOUBLE       | Gewicht in kg                                                      |
+| `delivery_type`       | VARCHAR(30)  | z.B. "STANDARD_MAIL"                                               |
+| `decision_source`     | ENUM         | `DROOLS` oder `HUMAN`                                              |
+| `decision_status`     | ENUM         | `AUTO`, `MANUAL_REVIEW`, `INVALID_INPUT`, `FINAL`                  |
+| `rule_name`           | VARCHAR(100) | Name der gefeuerten Drools-Regel (null bei HUMAN)                  |
+| `rule_version`        | VARCHAR(20)  | Aus `app.rule-version` (null bei HUMAN)                            |
+| `manual_reason`       | VARCHAR(500) | Begründung des Mitarbeiters (null bei DROOLS)                      |
+| `selected_carrier`    | VARCHAR(100) | Gewählte Spedition nach manuellem Entscheid (null bei DROOLS)      |
+| `process_instance_id` | VARCHAR(100) | Camunda Prozessinstanz-ID                                          |
+| `timestamp`           | DATETIME     | Automatisch gesetzt via `@PrePersist`                              |
+
+**Dual-Entry-Design (MANUAL_REVIEW):**
+
+Bei manuellen Entscheidungen entstehen zwei Einträge für dieselbe `process_instance_id`:
+
+| Eintrag                   | `decision_source` | `decision_status` | Inhalt                                         |
+| ------------------------- | ----------------- | ----------------- | ---------------------------------------------- |
+| Sofort beim Drools-Aufruf | `DROOLS`          | `MANUAL_REVIEW`   | Welche Regel hat gefeuert, warum war unklar?   |
+| Nach dem User Task        | `HUMAN`           | `FINAL`           | Was hat der Mensch gewählt + Begründung        |
 
 **ML-Trainingsdaten-Logik:**
 
-- Features: `delivery_country` + `weight`
-- Label: `delivery_type` des `FINAL`-Eintrags
-- Override-Signal: `decision_status = FINAL` mit passendem `MANUAL_REVIEW`-Eintrag
+Erst das Paar aus Systemsicht und Menschensicht macht die Daten aussagekräftig:
+
+- Features: `delivery_country` + `weight` (aus dem DROOLS-Eintrag)
+- Label: `delivery_type` des zugehörigen `FINAL`-Eintrags
+- Override-Signal: Welche Regeln werden regelmässig übersteuert → Kandidat für Regelanpassung
 
 ---
 
@@ -258,14 +270,12 @@ H2-Konsole (nur im h2-Profil): `http://localhost:8080/h2-console`
 
 Umgebungsvariablen setzen (Credentials nie im Code oder Repository):
 
-````powershell
+```powershell
 $env:DB_URL      = "jdbc:mysql://192.168.111.4:3306/db_group2?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
 $env:DB_USERNAME = "group2"
 $env:DB_PASSWORD = "<Passwort aus sicherem Store>"
-./mvnw.cmd spring-boot:run -Dspring.profiles.active=mysql
-```powershell
 .\mvnw.cmd spring-boot:run "-Dspring.profiles.active=mysql"
-````
+```
 
 Tabelle `decision_log` wird automatisch via `ddl-auto=update` angelegt.
 

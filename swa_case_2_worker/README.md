@@ -13,9 +13,9 @@ und melden das Ergebnis zurück.
 
 | Worker                 | Camunda-Topic         | Aufgabe                                                                                                                                                                                                        |
 | ---------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **DroolsWorker**       | `group2_droolsEngine` | Sendet Zielland + Gewicht an die Drools Engine (`POST /deliveryRuleManager`). Wertet den HTTP-Statuscode aus und schreibt `decisionStatus`, `deliveryType` und `isManualDecision` als Prozessvariablen zurück. |
-| **DecisionLogWorker**  | `group2_logDecision`  | Wird nur aktiv, wenn `isManualDecision=true`. Protokolliert die manuelle Entscheidung des Mitarbeiters in der Datenbank (`POST /decisions/manual`).                                                            |
-| **SpeditionApiWorker** | `group2_requestAPI`   | Sendet den fertigen Transportauftrag an die externe Speditions-API. Evaluiert die Antwort (Trackingnummer, Abholdatum) oder löst bei Ablehnung einen BPMN-Error aus.                                           |
+| **DroolsWorker**       | `group2_droolsEngine` | Sendet Zielland + Gewicht an die Drools Engine (`POST /deliveryRuleManager`). Wertet den HTTP-Statuscode aus und schreibt `decisionStatus`, `deliveryType`, `isManualDecision` und `manualDecisionReason` als Prozessvariablen zurück. Bei MANUAL_REVIEW enthält `manualDecisionReason` die auslösende Regelbezeichnung. |
+| **DecisionLogWorker**  | `group2_logDecision`  | Wird nur aktiv, wenn `isManualDecision=true`. Schreibt den zweiten DB-Eintrag (HUMAN/FINAL) nach der manuellen Entscheidung des Mitarbeiters (`POST /decisions/manual`). Der erste Eintrag (DROOLS/MANUAL_REVIEW) wurde bereits automatisch vom DroolsWorker ausgelöst.                                                   |
+| **SpeditionApiWorker** | `group2_requestAPI`   | Sendet den fertigen Transportauftrag an die externe Speditions-API. Evaluiert die Antwort (Trackingnummer, Abholdatum) oder löst bei Ablehnung einen BPMN-Error aus.                                                                                                                                                       |
 
 ---
 
@@ -28,10 +28,10 @@ Camunda Engine (192.168.111.3:8080)
     ▼
 WorkerMain.java  ← Startpunkt, registriert alle 3 Worker
     │
-    ├── DroolsWorker         ──► Drools Service (localhost:8081)
+    ├── DroolsWorker         ──► Drools Service (localhost:8080)
     │                              POST /deliveryRuleManager
     │
-    ├── DecisionLogWorker    ──► Drools Service (localhost:8081)
+    ├── DecisionLogWorker    ──► Drools Service (localhost:8080)
     │                              POST /decisions/manual
     │
     └── SpeditionApiWorker   ──► Speditions-API (192.168.111.5:8080)
@@ -79,22 +79,24 @@ Nur der SpeditionApiWorker nutzt `handleBpmnError()` bei Transportablehnung.
 - Java 21
 - Netzwerkzugang zu:
   - Camunda Engine (`192.168.111.3:8080`)
-  - Drools Service (`localhost:8081`)
+  - Drools Service (`localhost:8080`)
   - Speditions-API (`192.168.111.5:8080`)
 
 ### Starten
 
+Terminal öffnen im Ordner `swa_case_2_worker/swa_case_2_worker/` und ausführen:
+
 ```powershell
-.\mvnw.cmd compile exec:java
+..\..\swa_case_2_group_2_drools_engine\mvnw.cmd compile exec:java "-Dexec.mainClass=ch.fhnw.students.WorkerMain"
 ```
 
 Ausgabe bei erfolgreichem Start:
 
 ```
-=== Camunda External Task Workers (Case 2, Group 2) ===
-Worker registriert: group2_droolsEngine
-Worker registriert: group2_logDecision
-Worker registriert: group2_requestAPI
+INFORMATION: Drools-Worker registriert auf Topic: group2_droolsEngine
+INFORMATION: Decision-Log-Worker registriert auf Topic: group2_logDecision
+INFORMATION: Speditions-Worker registriert auf Topic: group2_requestAPI
+INFORMATION: Alle Worker gestartet. Warte auf Tasks...
 ```
 
 ### Lokale Entwicklung (ohne Camunda-Zugang)

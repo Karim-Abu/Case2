@@ -57,9 +57,9 @@ Das sind **drei kleine Programme**, die im Hintergrund laufen und Aufgaben vom C
 
 | Worker                 | Was er tut                                                                                                                               |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **DroolsWorker**       | Holt sich eine Aufgabe „Versandart bestimmen", schickt Land + Gewicht an die Drools Engine, schreibt das Ergebnis zurück in den Prozess. |
-| **DecisionLogWorker**  | Wenn ein Mensch manuell entschieden hat, protokolliert dieser Worker die Begründung in der Datenbank.                                    |
-| **SpeditionApiWorker** | Schickt den fertigen Transportauftrag an die externe Speditions-API und verarbeitet die Antwort (Trackingnummer, Abholdatum etc.).       |
+| **DroolsWorker**       | Schickt Zielland + Gewicht an die Drools Engine, schreibt das Ergebnis (AUTO/MANUAL_REVIEW/INVALID_INPUT) als Prozessvariablen zurück. Bei MANUAL_REVIEW wird `manualDecisionReason` automatisch mit der auslösenden Regelbezeichnung vorbelegt. |
+| **DecisionLogWorker**  | Schreibt nach der manuellen Entscheidung des Mitarbeiters den zweiten DB-Eintrag (HUMAN/FINAL). Der erste Eintrag (DROOLS/MANUAL_REVIEW) wurde bereits beim Drools-Aufruf automatisch angelegt.                                               |
+| **SpeditionApiWorker** | Sendet den fertigen Transportauftrag an die Speditions-API und verarbeitet die Antwort (Trackingnummer, Abholdatum). Bei Ablehnung wird ein BPMN-Error ausgelöst.                                                                                |
 
 ---
 
@@ -196,13 +196,13 @@ Erwartete Antwort: `{"ping": true}`
 
 ### Schritt 2: Workers starten
 
-Zweites Terminal öffnen im Ordner `swa_case_2_worker/` und ausführen:
+Zweites Terminal öffnen im Ordner `swa_case_2_worker/swa_case_2_worker/` und ausführen:
 
 ```powershell
-.\mvnw.cmd compile exec:java
+..\..\swa_case_2_group_2_drools_engine\mvnw.cmd compile exec:java "-Dexec.mainClass=ch.fhnw.students.WorkerMain"
 ```
 
-Die drei Worker verbinden sich mit dem Camunda-Server und warten auf Aufgaben.
+Die drei Worker verbinden sich mit Camunda und warten auf Aufgaben.
 
 ### Schritt 3: Tests ausführen
 
@@ -218,26 +218,64 @@ Es gibt 24 automatisierte Tests, die alle Regeln und REST-Endpunkte prüfen.
 
 ## Wie die Datenbank funktioniert
 
-Jede Entscheidung erzeugt einen Eintrag in der Tabelle `decision_log`:
+Jede Entscheidung erzeugt mindestens einen Eintrag in der Tabelle `decision_log`:
 
-| Feld                  | Bedeutung                                                        |
-| --------------------- | ---------------------------------------------------------------- |
-| `delivery_country`    | Zielland (z.B. „AR" für Argentinien)                             |
-| `weight`              | Gewicht in kg                                                    |
-| `delivery_type`       | Gewählte Versandart (z.B. „STANDARD_MAIL")                       |
-| `decision_source`     | Wer hat entschieden? `DROOLS` (Computer) oder `HUMAN` (Mensch)   |
-| `decision_status`     | Status: AUTO, MANUAL_REVIEW, INVALID_INPUT oder FINAL            |
-| `rule_name`           | Welche Regel hat gefeuert (nur bei automatischen Entscheidungen) |
-| `manual_reason`       | Begründung des Mitarbeiters (nur bei manuellen Entscheidungen)   |
-| `process_instance_id` | Verknüpfung zum Camunda-Prozess                                  |
-| `timestamp`           | Zeitpunkt der Entscheidung                                       |
+| Feld                  | Bedeutung                                                            |
+| --------------------- | -------------------------------------------------------------------- |
+| `delivery_country`    | Zielland (z.B. „AR" für Argentinien)                                 |
+| `weight`              | Gewicht in kg                                                        |
+| `delivery_type`       | Versandart (z.B. „STANDARD_MAIL")                                    |
+| `decision_source`     | Wer hat entschieden? `DROOLS` (Computer) oder `HUMAN` (Mensch)       |
+| `decision_status`     | Status: AUTO, MANUAL_REVIEW, INVALID_INPUT oder FINAL                |
+| `rule_name`           | Welche Regel hat gefeuert (nur bei DROOLS-Einträgen)                 |
+| `manual_reason`       | Begründung des Mitarbeiters (nur bei HUMAN-Einträgen)                |
+| `selected_carrier`    | Vom Mitarbeiter gewählte Spedition (nur bei HUMAN-Einträgen)         |
+| `process_instance_id` | Verknüpft DROOLS- und HUMAN-Eintrag derselben Prozessinstanz         |
+| `timestamp`           | Zeitpunkt der Entscheidung (automatisch gesetzt)                     |
 
-Bei **manuellen Entscheidungen** gibt es immer **zwei Einträge** für denselben Prozess:
+### Warum zwei Einträge bei MANUAL_REVIEW?
 
-1. Den ersten Eintrag von Drools (Status: MANUAL_REVIEW)
-2. Den zweiten Eintrag vom Mitarbeiter (Status: FINAL)
+Bei **manuellen Entscheidungen** erzeugt das System bewusst **zwei separate Einträge**,
+verknüpft über die `process_instance_id`:
 
-So kann man später vergleichen, was das System vorgeschlagen hätte und was der Mensch tatsächlich gewählt hat.
+**Eintrag 1 — DROOLS / MANUAL_REVIEW** (wird beim Drools-Aufruf sofort angelegt):
+
+| Feld              | Inhalt                                         |
+| ----------------- | ---------------------------------------------- |
+| `decision_source` | `DROOLS`                                       |
+| `decision_status` | `MANUAL_REVIEW`                                |
+| `delivery_type`   | `MANUAL_REVIEW` (Systemempfehlung: unklar)     |
+| `rule_name`       | z.B. `Delivery JP > 200kg`                     |
+| `manual_reason`   | leer                                           |
+
+**Eintrag 2 — HUMAN / FINAL** (wird nach dem User Task angelegt):
+
+| Feld               | Inhalt                                          |
+| ------------------ | ----------------------------------------------- |
+| `decision_source`  | `HUMAN`                                         |
+| `decision_status`  | `FINAL`                                         |
+| `delivery_type`    | z.B. `AIR_FREIGHT` (Entscheid des Mitarbeiters) |
+| `manual_reason`    | Begründung des Mitarbeiters                     |
+| `selected_carrier` | Gewählte Spedition                              |
+
+**Warum diese Trennung sinnvoll ist:**
+
+Würde man nur die menschliche Entscheidung speichern, verlöre man die wertvolle Systemsicht:
+Welche Regel hat zu MANUAL_REVIEW geführt? Warum war das System unsicher?
+Erst das **Paar aus Systemsicht und Menschensicht** macht die Daten aussagekräftig:
+
+```
+Systemsicht (DROOLS):     Land=JP, Gewicht=231 kg → Regel: JP > 200kg → MANUAL_REVIEW
+Menschliche Finalsicht:   Versandart=AIR_FREIGHT, Begründung="Sondergenehmigung"
+                                     ↓
+Erkenntnis: JP 200–250 kg könnte zukünftig AIR_FREIGHT sein (Regelanpassung möglich)
+```
+
+Mit wachsender Datenmenge lässt sich ableiten, welche Regeln regelmässig übersteuert werden —
+ein Signal, dass eine Regel angepasst oder durch ein KI-Modell ersetzt werden sollte.
+
+**AUTO-Entscheidungen** erzeugen nur **einen** Eintrag (DROOLS/AUTO) —
+kein Mensch greift ein, kein zweiter Eintrag nötig.
 
 ---
 
