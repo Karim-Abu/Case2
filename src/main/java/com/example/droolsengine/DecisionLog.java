@@ -96,10 +96,6 @@ public class DecisionLog {
     @Column(name = "process_instance_id", length = 100)
     private String processInstanceId;
 
-    /** Camunda Business-Key (z.B. Sendungsnummer). */
-    @Column(name = "business_key", length = 100)
-    private String businessKey;
-
     /** Vom Drools oder Sachbearbeiter gewählter Carrier. */
     @Column(name = "selected_carrier", length = 100)
     private String selectedCarrier;
@@ -129,7 +125,6 @@ public class DecisionLog {
         this.ruleVersion = builder.ruleVersion;
         this.manualReason = builder.manualReason;
         this.processInstanceId = builder.processInstanceId;
-        this.businessKey = builder.businessKey;
         this.selectedCarrier = builder.selectedCarrier;
     }
 
@@ -149,7 +144,6 @@ public class DecisionLog {
         private String ruleVersion;
         private String manualReason;
         private String processInstanceId;
-        private String businessKey;
         private String selectedCarrier;
 
         public Builder deliveryCountry(String v) {
@@ -194,11 +188,6 @@ public class DecisionLog {
 
         public Builder processInstanceId(String v) {
             this.processInstanceId = v;
-            return this;
-        }
-
-        public Builder businessKey(String v) {
-            this.businessKey = v;
             return this;
         }
 
@@ -258,10 +247,6 @@ public class DecisionLog {
 
     public String getProcessInstanceId() {
         return processInstanceId;
-    }
-
-    public String getBusinessKey() {
-        return businessKey;
     }
 
     public String getSelectedCarrier() {

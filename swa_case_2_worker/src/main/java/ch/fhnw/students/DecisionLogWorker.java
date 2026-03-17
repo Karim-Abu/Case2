@@ -45,7 +45,6 @@ public class DecisionLogWorker {
 
                 String deliveryType = (String) externalTask.getVariable("deliveryType");
                 String processInstanceId = externalTask.getProcessInstanceId();
-                String businessKey = externalTask.getBusinessKey();
                 String decisionStatus = (String) externalTask.getVariable("decisionStatus");
                 String selectedCarrier = (String) externalTask.getVariable("selectedCarrier");
 
@@ -65,7 +64,6 @@ public class DecisionLogWorker {
                     logBody.put("deliveryType", deliveryType != null ? deliveryType : "UNKNOWN");
                     logBody.put("manualReason", reason != null ? reason : "Keine Begründung angegeben");
                     logBody.put("processInstanceId", processInstanceId != null ? processInstanceId : "");
-                    logBody.put("businessKey", businessKey != null ? businessKey : "");
                     logBody.put("selectedCarrier", selectedCarrier != null ? selectedCarrier : "");
 
                     String logUrl = WorkerMain.DROOLS_URL + "/decisions/manual";

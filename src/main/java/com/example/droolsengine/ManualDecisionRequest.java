@@ -21,7 +21,6 @@ public class ManualDecisionRequest {
      */
     private String processInstanceId;
     private String selectedCarrier;
-    private String businessKey;
 
     public ManualDecisionRequest() {
     }
@@ -72,13 +71,5 @@ public class ManualDecisionRequest {
 
     public void setSelectedCarrier(String selectedCarrier) {
         this.selectedCarrier = selectedCarrier;
-    }
-
-    public String getBusinessKey() {
-        return businessKey;
-    }
-
-    public void setBusinessKey(String businessKey) {
-        this.businessKey = businessKey;
     }
 }

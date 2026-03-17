@@ -53,7 +53,6 @@ public class DroolsWorker {
                 // weight: Camunda-Form kann Long oder Integer liefern → Number-Cast
                 Number weightNum = (Number) externalTask.getVariable("weight");
                 String processInstanceId = externalTask.getProcessInstanceId();
-                String businessKey = externalTask.getBusinessKey();
 
                 // 2. Inputvalidierung — bei fehlenden Daten direkt INVALID_INPUT
                 // Drools wird nicht aufgerufen. Das ist kein fachliches Regelresultat,
@@ -81,13 +80,10 @@ public class DroolsWorker {
 
                 String url = WorkerMain.DROOLS_URL + "/deliveryRuleManager";
 
-                // processInstanceId + businessKey via Header (Controller erwartet Header)
+                // processInstanceId via Header (Controller erwartet Header)
                 Map<String, String> headers = new HashMap<>();
                 if (processInstanceId != null && !processInstanceId.isBlank()) {
                     headers.put("X-Process-Instance-Id", processInstanceId);
-                }
-                if (businessKey != null && !businessKey.isBlank()) {
-                    headers.put("X-Business-Key", businessKey);
                 }
 
                 JSONObject response = HttpHelper.post(url, requestBody, headers);
@@ -110,15 +106,17 @@ public class DroolsWorker {
 
                 } else if (statusCode == 206) {
                     // MANUAL_REVIEW — Drools-Regel schreibt menschliche Prüfung vor
+                    String ruleName = response.optString("ruleName", "UNKNOWN");
                     HashMap<String, Object> variables = new HashMap<>();
                     variables.put("deliveryType", response.optString("deliveryType", "MANUAL_REVIEW"));
-                    variables.put("ruleName", response.optString("ruleName", "UNKNOWN"));
+                    variables.put("ruleName", ruleName);
                     variables.put("decisionStatus", "MANUAL_REVIEW");
                     variables.put("isManualDecision", true);
+                    variables.put("manualDecisionReason", "Drools-Regel: " + ruleName);
 
                     LOG.info("Drools-Worker: MANUAL_REVIEW — "
                             + country + " / " + weight + "kg"
-                            + " (Regel: " + response.optString("ruleName") + ")");
+                            + " (Regel: " + ruleName + ")");
 
                     externalTaskService.complete(externalTask, variables);
 
@@ -163,6 +161,7 @@ public class DroolsWorker {
         variables.put("decisionStatus", decisionStatus);
         variables.put("deliveryType", deliveryType);
         variables.put("isManualDecision", isManual);
+        variables.put("manualDecisionReason", "Ungültige Eingabedaten – manuelle Klärung erforderlich");
         service.complete(task, variables);
     }
 }

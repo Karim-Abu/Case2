@@ -67,8 +67,7 @@ public class LogisticsController {
     @PostMapping(path = "/deliveryRuleManager", produces = "application/json")
     public ResponseEntity<?> deliveryRuleCall(
             @RequestBody Logistics logistics,
-            @RequestHeader(value = "X-Process-Instance-Id", required = false) String processInstanceId,
-            @RequestHeader(value = "X-Business-Key", required = false) String businessKey) {
+            @RequestHeader(value = "X-Process-Instance-Id", required = false) String processInstanceId) {
 
         // --- Input-Validierung → INVALID_INPUT (400) ---
         // Drools wird bei ungültigen Eingaben NICHT aufgerufen.
@@ -102,7 +101,7 @@ public class LogisticsController {
         // Entscheidung protokollieren — IMMER, auch bei MANUAL_REVIEW.
         // Logging-Fehler blockieren den Prozess nicht.
         try {
-            decisionLogService.logDroolsDecision(logistics, processInstanceId, businessKey);
+            decisionLogService.logDroolsDecision(logistics, processInstanceId);
         } catch (Exception e) {
             log.error("Logging fehlgeschlagen (Prozess läuft weiter): ", e);
         }

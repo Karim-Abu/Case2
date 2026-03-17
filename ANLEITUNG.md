@@ -259,6 +259,122 @@ So kann man später vergleichen, was das System vorgeschlagen hätte und was der
 
 ---
 
+## Workers starten und Ausgaben lesen
+
+### Workers starten
+
+Die drei Worker werden gemeinsam mit einem einzigen Befehl gestartet.
+Terminal öffnen im Ordner `swa_case_2_worker/swa_case_2_worker/` und ausführen:
+
+```powershell
+..\..\swa_case_2_group_2_drools_engine\mvnw.cmd compile exec:java "-Dexec.mainClass=ch.fhnw.students.WorkerMain"
+```
+
+Wenn die Worker erfolgreich gestartet sind, erscheinen folgende Zeilen:
+
+```
+INFORMATION: Drools-Worker registriert auf Topic: group2_droolsEngine
+INFORMATION: Decision-Log-Worker registriert auf Topic: group2_logDecision
+INFORMATION: Speditions-Worker registriert auf Topic: group2_requestAPI
+INFORMATION: Alle Worker gestartet. Warte auf Tasks...
+```
+
+Ab diesem Moment warten die Worker auf Aufgaben vom Camunda-Server.
+
+> **Wichtig:** Die Drools Engine (Schritt 1) muss bereits laufen, bevor die Workers gestartet werden.
+
+### URLs anpassen (optional)
+
+Standardmässig verwenden die Workers folgende Adressen:
+
+| Variable      | Standardwert                                       | Bedeutung                    |
+| ------------- | -------------------------------------------------- | ---------------------------- |
+| `CAMUNDA_URL` | `http://group2:...@192.168.111.3:8080/engine-rest` | Camunda-Engine im Labor      |
+| `DROOLS_URL`  | `http://localhost:8080`                            | Lokal laufende Drools Engine |
+| `API_URL`     | `http://192.168.111.5:8080`                        | Speditions-API im Labor      |
+
+Sollen andere Adressen verwendet werden, Umgebungsvariablen vor dem Start setzen:
+
+```powershell
+$env:DROOLS_URL = "http://localhost:9090"
+$env:API_URL    = "http://192.168.111.5:8080"
+```
+
+### Ausgaben lesen
+
+Jeder Worker gibt im Terminal Meldungen aus, die zeigen was er gerade tut:
+
+**DroolsWorker — Drools Engine aufgerufen:**
+
+```
+INFORMATION: Drools-Worker: Task empfangen, id=abc123...
+INFORMATION: Drools-Worker: AUTO → STANDARD_FREIGHT (Regel: Delivery CH any weight)
+```
+
+oder bei manuellem Review:
+
+```
+INFORMATION: Drools-Worker: MANUAL_REVIEW → JP / 231kg (Regel: Delivery JP > 200kg)
+```
+
+**DecisionLogWorker — Entscheidung protokolliert:**
+
+```
+INFORMATION: Log-Worker: Manuelle Entscheidung protokolliert — JP / AIR_FREIGHT
+```
+
+oder bei automatischer Entscheidung (kein Eintrag nötig):
+
+```
+INFORMATION: Log-Worker: AUTO-Entscheidung — bereits geloggt, überspringe.
+```
+
+**SpeditionApiWorker — Transportauftrag gesendet:**
+
+```
+INFORMATION: Speditions-Worker: Auftrag erfolgreich — Tracking: TRK-20240317-001
+```
+
+oder bei Ablehnung:
+
+```
+INFORMATION: Speditions-Worker: Fachliche Ablehnung — Zielland nicht bedienbar
+```
+
+**Fehlermeldungen (SCHWERWIEGEND):**
+
+```
+SCHWERWIEGEND: Drools-Worker: Technischer Fehler → ...
+```
+
+Bei technischen Fehlern (z.B. Netzwerkausfall) versucht der Worker es automatisch bis zu 3 Mal erneut. Erst danach erscheint ein Incident in Camunda Cockpit.
+
+### Drools Engine mit MySQL starten (Produktion)
+
+Für den Betrieb mit der echten MySQL-Datenbank im Labor:
+
+```powershell
+cd "...\swa_case_2_group_2_drools_engine"
+$env:DB_URL      = "jdbc:mysql://192.168.111.4:3306/db_group2?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+$env:DB_USERNAME = "group2"
+$env:DB_PASSWORD = "..."
+.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=mysql"
+```
+
+Wenn die Verbindung klappt, erscheint:
+
+```
+HikariPool-1 - Added connection ... MySQL 8.4.x
+```
+
+Danach werden alle Entscheidungen dauerhaft in `db_group2.decision_log` gespeichert und können mit folgendem SQL abgefragt werden:
+
+```sql
+SELECT * FROM decision_log ORDER BY timestamp DESC;
+```
+
+---
+
 ## Technologie-Stack
 
 | Komponente              | Technologie                  | Version |
