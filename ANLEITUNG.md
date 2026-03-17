@@ -55,10 +55,10 @@ Das ist ein **Webservice** (eine Art Server), der auf Anfragen wartet und folgen
 
 Das sind **drei kleine Programme**, die im Hintergrund laufen und Aufgaben vom Camunda-Prozess abholen:
 
-| Worker                 | Was er tut                                                                                                                               |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker                 | Was er tut                                                                                                                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **DroolsWorker**       | Schickt Zielland + Gewicht an die Drools Engine, schreibt das Ergebnis (AUTO/MANUAL_REVIEW/INVALID_INPUT) als Prozessvariablen zurück. Bei MANUAL_REVIEW wird `manualDecisionReason` automatisch mit der auslösenden Regelbezeichnung vorbelegt. |
-| **DecisionLogWorker**  | Schreibt nach der manuellen Entscheidung des Mitarbeiters den zweiten DB-Eintrag (HUMAN/FINAL). Der erste Eintrag (DROOLS/MANUAL_REVIEW) wurde bereits beim Drools-Aufruf automatisch angelegt.                                               |
+| **DecisionLogWorker**  | Schreibt nach der manuellen Entscheidung des Mitarbeiters den zweiten DB-Eintrag (HUMAN/FINAL). Der erste Eintrag (DROOLS/MANUAL_REVIEW) wurde bereits beim Drools-Aufruf automatisch angelegt.                                                  |
 | **SpeditionApiWorker** | Sendet den fertigen Transportauftrag an die Speditions-API und verarbeitet die Antwort (Trackingnummer, Abholdatum). Bei Ablehnung wird ein BPMN-Error ausgelöst.                                                                                |
 
 ---
@@ -184,7 +184,13 @@ Terminal öffnen im Hauptverzeichnis und ausführen:
 .\mvnw.cmd spring-boot:run
 ```
 
-Der Service startet auf **Port 8080** (Standard) mit der H2-In-Memory-Datenbank.
+Der Service startet auf **Port 8080** mit MySQL (Standardprofil). Die MySQL-Zugangsdaten müssen als Umgebungsvariablen gesetzt sein (siehe unten).
+
+Für lokale Tests **ohne** MySQL kann H2 temporär aktiviert werden:
+
+```powershell
+.\mvnw.cmd spring-boot:run "-Dspring.profiles.active=h2"
+```
 
 Zum Testen, ob der Service läuft:
 
@@ -220,18 +226,18 @@ Es gibt 24 automatisierte Tests, die alle Regeln und REST-Endpunkte prüfen.
 
 Jede Entscheidung erzeugt mindestens einen Eintrag in der Tabelle `decision_log`:
 
-| Feld                  | Bedeutung                                                            |
-| --------------------- | -------------------------------------------------------------------- |
-| `delivery_country`    | Zielland (z.B. „AR" für Argentinien)                                 |
-| `weight`              | Gewicht in kg                                                        |
-| `delivery_type`       | Versandart (z.B. „STANDARD_MAIL")                                    |
-| `decision_source`     | Wer hat entschieden? `DROOLS` (Computer) oder `HUMAN` (Mensch)       |
-| `decision_status`     | Status: AUTO, MANUAL_REVIEW, INVALID_INPUT oder FINAL                |
-| `rule_name`           | Welche Regel hat gefeuert (nur bei DROOLS-Einträgen)                 |
-| `manual_reason`       | Begründung des Mitarbeiters (nur bei HUMAN-Einträgen)                |
-| `selected_carrier`    | Vom Mitarbeiter gewählte Spedition (nur bei HUMAN-Einträgen)         |
-| `process_instance_id` | Verknüpft DROOLS- und HUMAN-Eintrag derselben Prozessinstanz         |
-| `timestamp`           | Zeitpunkt der Entscheidung (automatisch gesetzt)                     |
+| Feld                  | Bedeutung                                                      |
+| --------------------- | -------------------------------------------------------------- |
+| `delivery_country`    | Zielland (z.B. „AR" für Argentinien)                           |
+| `weight`              | Gewicht in kg                                                  |
+| `delivery_type`       | Versandart (z.B. „STANDARD_MAIL")                              |
+| `decision_source`     | Wer hat entschieden? `DROOLS` (Computer) oder `HUMAN` (Mensch) |
+| `decision_status`     | Status: AUTO, MANUAL_REVIEW, INVALID_INPUT oder FINAL          |
+| `rule_name`           | Welche Regel hat gefeuert (nur bei DROOLS-Einträgen)           |
+| `manual_reason`       | Begründung des Mitarbeiters (nur bei HUMAN-Einträgen)          |
+| `selected_carrier`    | Vom Mitarbeiter gewählte Spedition (nur bei HUMAN-Einträgen)   |
+| `process_instance_id` | Verknüpft DROOLS- und HUMAN-Eintrag derselben Prozessinstanz   |
+| `timestamp`           | Zeitpunkt der Entscheidung (automatisch gesetzt)               |
 
 ### Warum zwei Einträge bei MANUAL_REVIEW?
 
@@ -240,13 +246,13 @@ verknüpft über die `process_instance_id`:
 
 **Eintrag 1 — DROOLS / MANUAL_REVIEW** (wird beim Drools-Aufruf sofort angelegt):
 
-| Feld              | Inhalt                                         |
-| ----------------- | ---------------------------------------------- |
-| `decision_source` | `DROOLS`                                       |
-| `decision_status` | `MANUAL_REVIEW`                                |
-| `delivery_type`   | `MANUAL_REVIEW` (Systemempfehlung: unklar)     |
-| `rule_name`       | z.B. `Delivery JP > 200kg`                     |
-| `manual_reason`   | leer                                           |
+| Feld              | Inhalt                                     |
+| ----------------- | ------------------------------------------ |
+| `decision_source` | `DROOLS`                                   |
+| `decision_status` | `MANUAL_REVIEW`                            |
+| `delivery_type`   | `MANUAL_REVIEW` (Systemempfehlung: unklar) |
+| `rule_name`       | z.B. `Delivery JP > 200kg`                 |
+| `manual_reason`   | leer                                       |
 
 **Eintrag 2 — HUMAN / FINAL** (wird nach dem User Task angelegt):
 
