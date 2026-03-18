@@ -1,9 +1,11 @@
 package com.example.droolsengine;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Logistics {
     private double weight;
+    @JsonProperty("deliveryCountry")
     private DeliveryCountry destination;
     private DeliveryType deliveryType;
     @JsonInclude(JsonInclude.Include.NON_EMPTY)

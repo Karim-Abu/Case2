@@ -13,7 +13,7 @@ import java.util.logging.Logger;
  *
  * Logik:
  * - manualDecisionReason vorhanden → POST /decisions/manual
- *   (MANUAL_REVIEW + INVALID_INPUT, nach User Task)
+ * (MANUAL_REVIEW + INVALID_INPUT, nach User Task)
  * - sonst → Überspringen (AUTO wurde bereits im LogisticsController geloggt)
  *
  * Keine Duplikate: AUTO-Entscheidungen werden NUR vom Controller geloggt,

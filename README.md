@@ -79,9 +79,9 @@ Der `DroolsWorker` (Topic `group2_droolsEngine`) muss diese Statuscodes verarbei
 
 | HTTP  | Bedeutung                                                                                        | Worker-Aktion                                                                                   |
 | ----- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `202` | AUTO — Drools hat eindeutige Versandart bestimmt                                                 | `complete(deliveryType, decisionStatus='AUTO', isManualDecision=false)`                         |
-| `206` | MANUAL_REVIEW — Regel existiert, schreibt menschliche Prüfung vor                                | `complete(deliveryType='MANUAL_REVIEW', decisionStatus='MANUAL_REVIEW', isManualDecision=true)` |
-| `400` | INVALID_INPUT — Ungültige Eingabe (weight ≤ 0, destination fehlt). Drools wird NICHT aufgerufen. | `complete(decisionStatus='INVALID_INPUT', isManualDecision=true)`                               |
+| `202` | AUTO — Drools hat eindeutige Versandart bestimmt                                                       | `complete(deliveryType, decisionStatus='AUTO', isManualDecision=false, deliveryCountry=<normalisiert>)` |
+| `206` | MANUAL_REVIEW — Regel existiert, schreibt menschliche Prüfung vor                                     | `complete(deliveryType='MANUAL_REVIEW', decisionStatus='MANUAL_REVIEW', isManualDecision=true, deliveryCountry=<user-input>)` |
+| `400` | INVALID_INPUT — Ungültige Eingabe (weight ≤ 0, deliveryCountry fehlt). Drools wird NICHT aufgerufen.  | `complete(decisionStatus='INVALID_INPUT', isManualDecision=true)`                                      |
 | `500` | Technischer Fehler (Drools-Engine nicht erreichbar etc.)                                         | `handleFailure(errorMessage, retries=3, retryTimeout=15000)`                                    |
 
 **Kein `handleBpmnError()` für fachliche Statuscodes.**
@@ -186,7 +186,7 @@ X-Process-Instance-Id: <Camunda-Prozessinstanz-ID>
 ```json
 {
   "weight": 55.0,
-  "destination": "AR"
+  "deliveryCountry": "AR"
 }
 ```
 
@@ -195,7 +195,7 @@ X-Process-Instance-Id: <Camunda-Prozessinstanz-ID>
 ```json
 {
   "weight": 55.0,
-  "destination": "AR",
+  "deliveryCountry": "AR",
   "deliveryType": "STANDARD_MAIL",
   "ruleName": "Delivery AR 0kg < x <= 60kg"
 }
@@ -206,7 +206,7 @@ X-Process-Instance-Id: <Camunda-Prozessinstanz-ID>
 ```json
 {
   "weight": 100.0,
-  "destination": "RU",
+  "deliveryCountry": "RU",
   "deliveryType": "MANUAL_REVIEW",
   "ruleName": "Delivery RU any weight"
 }

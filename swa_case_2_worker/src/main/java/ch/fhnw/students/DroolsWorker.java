@@ -76,7 +76,7 @@ public class DroolsWorker {
                 // 3. Drools-Service aufrufen
                 JSONObject requestBody = new JSONObject();
                 requestBody.put("weight", weight);
-                requestBody.put("destination", country);
+                requestBody.put("deliveryCountry", country);
 
                 String url = WorkerMain.DROOLS_URL + "/deliveryRuleManager";
 
@@ -92,11 +92,15 @@ public class DroolsWorker {
                 // 4. Ergebnis auswerten — ALLE fachlichen Statuscodes → complete()
                 if (statusCode == 202) {
                     // AUTO — Drools hat eindeutig entschieden
+                    // Normalisierten Ländernamen (Enum-Name) aus der Drools-Antwort übernehmen,
+                    // damit DecisionLogWorker und Controller denselben Wert in der DB haben.
+                    String normalizedCountry = response.optString("deliveryCountry", country);
                     HashMap<String, Object> variables = new HashMap<>();
                     variables.put("deliveryType", response.getString("deliveryType"));
                     variables.put("ruleName", response.optString("ruleName", "UNKNOWN"));
                     variables.put("decisionStatus", "AUTO");
                     variables.put("isManualDecision", false);
+                    variables.put("deliveryCountry", normalizedCountry);
 
                     LOG.info("Drools-Worker: AUTO — "
                             + response.getString("deliveryType")
@@ -106,9 +110,11 @@ public class DroolsWorker {
 
                 } else if (statusCode == 206) {
                     // MANUAL_REVIEW — Drools-Regel schreibt menschliche Prüfung vor
+
                     String ruleName = response.optString("ruleName", "UNKNOWN");
                     HashMap<String, Object> variables = new HashMap<>();
                     variables.put("deliveryType", response.optString("deliveryType", "MANUAL_REVIEW"));
+                    variables.put("deliveryCountry", country);
                     variables.put("ruleName", ruleName);
                     variables.put("decisionStatus", "MANUAL_REVIEW");
                     variables.put("isManualDecision", true);

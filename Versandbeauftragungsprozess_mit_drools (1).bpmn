@@ -233,7 +233,7 @@ Versandart</bpmn:text>
     <bpmn:userTask id="Activity_0qh7mao" name="Spedition manuell auswählen">
       <bpmn:extensionElements>
         <camunda:formData>
-          <camunda:formField id="destination" label="Ankunftsland" type="string" />
+          <camunda:formField id="deliveryCountry" label="Ankunftsland" type="string" />
           <camunda:formField id="deliveryType" label="Speditionsart" type="string" />
           <camunda:formField id="selectedCarrier" label="Gewählte Spedition" type="string" />
           <camunda:formField id="manualDecisionReason" label="Begründung der manuellen Wahl" type="string" />
@@ -251,7 +251,7 @@ Versandart</bpmn:text>
     <bpmn:userTask id="Activity_046ck12" name="Daten validieren">
       <bpmn:extensionElements>
         <camunda:formData>
-          <camunda:formField id="destination" label="Ankunftsland" type="string" />
+          <camunda:formField id="deliveryCountry" label="Ankunftsland" type="string" />
           <camunda:formField id="deliveryType" label="Speditionsart" type="string" />
           <camunda:formField id="selectedCarrier" label="Gewählte Spedition" type="string" />
           <camunda:formField id="dataValid" label="Daten korrekt?" type="boolean" />
@@ -389,10 +389,6 @@ Versandart</bpmn:text>
       <bpmndi:BPMNShape id="Activity_1tp4wjc_di" bpmnElement="Activity_046ck12">
         <dc:Bounds x="1580" y="770" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Association_1gqu1ek_di" bpmnElement="Association_1gqu1ek">
-        <di:waypoint x="1669" y="770" />
-        <di:waypoint x="1697" y="740" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_09p5yxn_di" bpmnElement="Flow_09p5yxn">
         <di:waypoint x="420" y="360" />
         <di:waypoint x="465" y="360" />
@@ -497,10 +493,6 @@ Versandart</bpmn:text>
         <di:waypoint x="1520" y="920" />
         <di:waypoint x="1520" y="835" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Association_015rw10_di" bpmnElement="Association_015rw10">
-        <di:waypoint x="1455" y="1020" />
-        <di:waypoint x="1455" y="960" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0svg5kd_di" bpmnElement="Flow_0svg5kd">
         <di:waypoint x="1545" y="810" />
         <di:waypoint x="1580" y="810" />
@@ -508,6 +500,14 @@ Versandart</bpmn:text>
       <bpmndi:BPMNEdge id="Flow_1d0fjzs_di" bpmnElement="Flow_1d0fjzs">
         <di:waypoint x="1820" y="810" />
         <di:waypoint x="1850" y="810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_015rw10_di" bpmnElement="Association_015rw10">
+        <di:waypoint x="1455" y="1020" />
+        <di:waypoint x="1455" y="960" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Association_1gqu1ek_di" bpmnElement="Association_1gqu1ek">
+        <di:waypoint x="1669" y="770" />
+        <di:waypoint x="1697" y="740" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Participant_1j5zyh5_di" bpmnElement="Participant_1unbif1" isHorizontal="true">
         <dc:Bounds x="180" y="80" width="2808" height="60" />

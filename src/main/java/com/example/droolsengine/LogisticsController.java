@@ -78,7 +78,8 @@ public class LogisticsController {
                     "decisionStatus", "INVALID_INPUT",
                     "reason", "Gewicht muss > 0 sein",
                     "weight", logistics.getWeight(),
-                    "destination", logistics.getDestination() != null ? logistics.getDestination().name() : "null"));
+                    "deliveryCountry",
+                    logistics.getDestination() != null ? logistics.getDestination().name() : "null"));
         }
         if (logistics.getDestination() == null) {
             log.warn("Abgelehnt: destination fehlt im Request");
